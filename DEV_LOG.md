@@ -421,12 +421,30 @@
   - `npm run build --workspace=frontend`: ผ่านฉลุย **0 Errors** (Bundle size: 26.91 kB CSS, 202.57 kB JS) 🚀
   - `npm run test --workspace=backend`: ผ่านฉลุย **54/54 Tests (100% Pass Rate)** 🧪
 
+---
 
-
-
-
-
-
-
-
+### 📌 Entry #015: เชื่อมต่อ Supabase Cloud PostgreSQL ผ่าน IPv4 Session Pooler, ซิงค์ Schema และ Seed ข้อมูลสำเร็จ 100%
+- **วันและเวลา**: `2026-09-12 13:08:00 +07:00`
+- **ผู้ดำเนินการ**: Antigravity AI Pair Programmer
+- **การกระทำ (Action)**:
+  - วินิจฉัยและแก้ไขปัญหาการเชื่อมต่อ Supabase Database จาก Direct Connection (`db.yliruhaqkbeatlfayzrr.supabase.co:5432`):
+    - เนื่องจาก Supabase Direct Host เป็น IPv6-only (AAAA Record) ทำให้เครื่องลูกข่าย Windows บนเครือข่ายอินเทอร์เน็ตที่ไม่มี IPv6 Routing เกิดข้อผิดพลาด `P1001: Can't reach database server`
+    - ดำเนินการสลับมาใช้ **Supabase Connection Pooler (Session Mode)** ผ่าน Host IPv4 ของ AWS Singapore Region (`aws-0-ap-southeast-1.pooler.supabase.com:5432`) และระบุ Username ตามแพทเทิร์น `postgres.yliruhaqkbeatlfayzrr`
+  - อัปเดต `DATABASE_URL` ใน `.env` และ `backend/.env` ให้ชี้ไปยัง Supabase Session Pooler อย่างปลอดภัย
+  - รันคำสั่ง `npx prisma db push --schema=backend/prisma/schema.prisma` สำเร็จ ซิงค์ Schema ทั้ง 6 ตาราง (`users`, `mcp_servers`, `tool_definitions`, `ai_skills`, `client_configs`, `submission_reviews`) ขึ้นบน Supabase Cloud ได้ครบถ้วนภายใน 1.77s
+  - รันคำสั่ง `npm run seed --workspace=backend` ดำเนินการ Seed ข้อมูลตั้งต้นเข้า Supabase Table Editor สำเร็จครบ 100%:
+    - 3 บัญชีผู้ใช้ (`admin@contextforge.dev`, `developer@contextforge.dev`, `visitor@contextforge.dev`)
+    - 5 MCP Servers & Tools definitions
+    - 5 AI Skills (รวม Malicious prompt injection sample สำหรับทดสอบ Security Scanner)
+    - 2 Submission Reviews สำหรับ Admin Queue
+    - 1 Sample ClientConfig
+- **ไฟล์ที่สร้าง/แก้ไข**:
+  - `.env`
+  - `backend/.env`
+  - `DEV_LOG.md`
+- **ผลการทดสอบ/ยืนยัน**:
+  - `npx prisma db push`: ซิงค์โครงสร้างตารางขึ้น Supabase สำเร็จ (1.77s) 🚀
+  - `npm run seed --workspace=backend`: Seeded successfully 100% บน Supabase Table Editor 📦
+  - `npm run test --workspace=backend`: ผ่านฉลุย **54/54 Tests (100% Pass Rate)** ครบทั้ง 8 Test Files 🧪
+  - `npm run build --workspace=frontend`: ผ่านฉลุย **0 Errors** (Bundle size: 26.91 kB CSS, 202.57 kB JS) 🎨
 
