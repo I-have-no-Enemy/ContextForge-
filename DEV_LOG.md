@@ -298,6 +298,39 @@
   - `npm run test --workspace=backend`: ผ่านฉลุย **45/45 Tests (100% Pass Rate)** ครอบคลุมทั้ง 7 Test Files 🧪
   - `npx tsc --noEmit`: คอมไพล์ TypeScript ผ่านฉลุย **0 Type Errors** (Exit code 0) 🚀
 
+---
+
+### 📌 Entry #011: พัฒนา Slice 5 — Governance & Admin Review Endpoints (`/api/v1/admin/*`)
+- **วันและเวลา**: `2026-09-12 12:28:00 +07:00`
+- **ผู้ดำเนินการ**: Antigravity AI Pair Programmer
+- **การกระทำ (Action)**:
+  - แตก Ticket รายละเอียดย่อยลง `scratch/tickets.md` (Ticket-013 Admin Validation, Ticket-014 Admin Controller/Polymorphic RBAC, Ticket-015 Governance Test Suite)
+  - สร้าง Input Validator ด้วย Zod ใน `backend/src/validators/admin.validator.ts`:
+    - `listSubmissionsQuerySchema`: Query params รองรับ pagination, `status` enum, `flagged_by_scan` boolean, และ `item_type` filter
+    - `reviewSubmissionSchema`: ตรวจสอบ `item_type` (`server` | `skill`), UUID, `status` (`approved` | `rejected`), และ `review_notes`
+    - `emergencyTakedownSchema`: ตรวจสอบ `item_type`, UUID, และ `reason` ($\ge 5$ ตัวอักษร)
+  - สร้าง Controller ใน `backend/src/controllers/admin.controller.ts`:
+    - `GET /api/v1/admin/submissions`: ดึงรายการคิวตรวจสอบ submissions พร้อม Pagination Metadata และ Relation กับผู้รีวิว
+    - `POST /api/v1/admin/submissions/review`:
+      - **Enforce Polymorphic Integrity (2026 Critical Testing Requirement)**: ตรวจสอบ Referential Integrity ข้ามตาราง หากส่ง `item_type = 'server'` แต่ระบุ ID ที่ไม่มีใน `mcp_servers` หรือระบุ ID ของ Skill ระบบจะปฏิเสธด้วย HTTP 400 (`POLYMORPHIC_REFERENCE_ERROR`) ทันที ป้องกัน Data Corruption
+      - ดำเนินการอัปเดต Database Transactionally: บันทึกประวัติการรีวิวลง `submission_reviews` และสลับสถานะ `is_verified` ของ MCP Server หรือ AI Skill ตามผลการอนุมัติ
+    - `POST /api/v1/admin/takedown`: คำสั่งฉุกเฉินสำหรับแอดมินในการเพิกถอนและระงับการใช้งานเครื่องมือที่ตรวจพบช่องโหว่รุนแรง ทำการ Soft Delete (`is_deleted = true, is_verified = false, deleted_at = now()`) และบันทึก Audit Trail ลงในตารางรีวิว
+  - สร้าง Routes ใน `backend/src/routes/admin.routes.ts` ปกป้องทุก Endpoint ด้วย `requireAuth` และ `requireRole(['admin'])`
+  - เปิดใช้งาน Mount `apiRouter.use('/admin', adminRouter)` ใน `backend/src/routes/index.ts`
+  - พัฒนา Integration Test Suite ครบวงจรใน `backend/src/__tests__/admin.test.ts` (9 Test Cases ครอบคลุม RBAC 401/403, Submissions queue with scan flags, Polymorphic integrity rejection 400, Server approval transaction, Skill rejection transaction, Emergency takedown soft-delete, 404 not found, และ 400 validation error)
+- **ไฟล์ที่สร้าง/แก้ไข**:
+  - `scratch/tickets.md`
+  - `backend/src/validators/admin.validator.ts`
+  - `backend/src/controllers/admin.controller.ts`
+  - `backend/src/routes/admin.routes.ts`
+  - `backend/src/routes/index.ts`
+  - `backend/src/__tests__/admin.test.ts`
+  - `DEV_LOG.md`
+- **ผลการทดสอบ/ยืนยัน**:
+  - `npm run test --workspace=backend`: ผ่านฉลุย **54/54 Tests (100% Pass Rate)** ครอบคลุมทั้ง 8 Test Files 🧪
+  - `npx tsc --noEmit`: คอมไพล์ TypeScript ผ่านฉลุย **0 Type Errors** (Exit code 0) 🚀
+
+
 
 
 

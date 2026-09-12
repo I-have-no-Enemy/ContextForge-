@@ -5,6 +5,7 @@ import { authRouter } from './auth.routes.js';
 import { serverRouter } from './server.routes.js';
 import { skillRouter } from './skill.routes.js';
 import { configRouter } from './config.routes.js';
+import { adminRouter } from './admin.routes.js';
 
 export const apiRouter = Router();
 
@@ -30,6 +31,7 @@ apiRouter.use('/skills', skillRouter);
 // Multi-Client Configuration Generation Routes
 apiRouter.use('/configs', configRouter);
 
-// Admin Governance Routes (connected in Slice 5)
-// apiRouter.use('/admin', adminRouter);
+// Admin Governance Routes
+apiRouter.use('/admin', adminRouter);
+
 
