@@ -21,7 +21,8 @@
 |   5   | 2026-09-12 11:58:00   | Scaffold Root Monorepo, Docker Compose, Backend & Frontend Skeletons | Implementation |  `7b9ce6f`  |
 |   6   | 2026-09-12 12:08:00   | Create Initial SQL Migration, GIN Indexes & Comprehensive Seed Script (`seed.ts`) |    Database    |  `eaf83c8`  |
 |   7   | 2026-09-12 12:13:00   | Implement Slice 1: Authentication & Identity Engine (`/api/v1/auth/*`) | Authentication |  `8f2abff`  |
-|   8   | 2026-09-12 12:19:00   | Implement Slice 2: MCP Server & Tool Registry Endpoints (`/api/v1/servers/*`) |  MCP & Tools   |  *Pending*  |
+|   8   | 2026-09-12 12:19:00   | Implement Slice 2: MCP Server & Tool Registry Endpoints (`/api/v1/servers/*`) |  MCP & Tools   |  `e897b4e`  |
+|   9   | 2026-09-12 12:24:00   | Implement Slice 3: AI Skills Registry & Security Scanner Endpoints (`/api/v1/skills/*`) | AI Skills & LLM01 |  *Pending*  |
 
 ---
 
@@ -235,6 +236,37 @@
 - **ผลการทดสอบ/ยืนยัน**:
   - `npm run test --workspace=backend`: ผ่านฉลุย **28/28 Tests (100% Pass Rate)** ครอบคลุมทั้ง 5 Test Files 🧪
   - `npx tsc --noEmit`: คอมไพล์ TypeScript ผ่านฉลุย **0 Type Errors** (Exit code 0) 🚀
+
+---
+
+### 📌 Entry #009: พัฒนา Slice 3 — AI Skills Registry & Security Scanner Endpoints (`/api/v1/skills/*`)
+- **วันและเวลา**: `2026-09-12 12:24:00 +07:00`
+- **ผู้ดำเนินการ**: Antigravity AI Pair Programmer
+- **การกระทำ (Action)**:
+  - แตก Ticket รายละเอียดย่อยลง `scratch/tickets.md` (Ticket-007 Validation, Ticket-008 Controller/Scanning Pipeline, Ticket-009 Integration Tests)
+  - สร้าง Input Validator ด้วย Zod ใน `backend/src/validators/skill.validator.ts`:
+    - `createSkillSchema`: ตรวจสอบชื่อ Skill (lowercase, numbers, hyphens/underscores), เนื้อหา Markdown (`skill_content` $\ge 10$ ตัวอักษร), array ของ `compatible_clients`, และ `tags`
+    - `updateSkillSchema`: Partial updates สำหรับแก้ไขเนื้อหา Skill
+  - สร้าง Controller ใน `backend/src/controllers/skill.controller.ts`:
+    - `GET /api/v1/skills`: Public Discovery แบบ Pagination (`page`, `limit`), Full-text search (ILIKE), และรองรับ Filter ตาม Client (`?client=cursor`)
+    - `GET /api/v1/skills/:id`: แสดงเนื้อหา Markdown ฉบับเต็มของ `SKILL.md` (หากยังไม่ Verified จะอนุญาตให้เฉพาะเจ้าของหรือ Admin เข้าดูได้)
+    - `POST /api/v1/skills`: **เชื่อมโยงเข้ากับ `SecurityScanner.scanSkillContent()` อัตโนมัติ (LLM01 Defense)** ตรวจจับ Pattern อันตราย (System prompt override, Webhook exfiltration, Secret harvesting, Obfuscation) ภายในเวลา <5ms หากพบจะทำการ Soft-flag บันทึกผลลง `scan_flags` และสร้าง Record ใน `submission_reviews` พร้อม Flag แจ้งเตือนแอดมินโดยไม่ขัดขวาง HTTP 201
+    - `PATCH /api/v1/skills/:id`: ตรวจสอบสิทธิ์ความเป็นเจ้าของ (ป้องกัน IDOR 403) และหากมีการแก้ไข `skill_content` จะทำการรัน Security Scanner ซ้ำให้อัตโนมัติ
+    - `DELETE /api/v1/skills/:id`: ตรวจสอบสิทธิ์ และทำ Soft Delete (`is_deleted: true`)
+  - สร้าง Route ใน `backend/src/routes/skill.routes.ts` และเชื่อมเข้ากับ `apiRouter.use('/skills', skillRouter)` ใน `backend/src/routes/index.ts`
+  - เขียน Integration Test Suite ครบวงจรใน `backend/src/__tests__/skills.test.ts` (8 Test Cases ครอบคลุม Discovery, Pagination, Benign submission, Malicious prompt injection soft-flagging, IDOR 403 prevention, และ Soft delete)
+- **ไฟล์ที่สร้าง/แก้ไข**:
+  - `scratch/tickets.md`
+  - `backend/src/validators/skill.validator.ts`
+  - `backend/src/controllers/skill.controller.ts`
+  - `backend/src/routes/skill.routes.ts`
+  - `backend/src/routes/index.ts`
+  - `backend/src/__tests__/skills.test.ts`
+  - `DEV_LOG.md`
+- **ผลการทดสอบ/ยืนยัน**:
+  - `npm run test --workspace=backend`: ผ่านฉลุย **36/36 Tests (100% Pass Rate)** ครอบคลุมทั้ง 6 Test Files 🧪
+  - `npx tsc --noEmit`: คอมไพล์ TypeScript ผ่านฉลุย **0 Type Errors** (Exit code 0) 🚀
+
 
 
 
