@@ -19,6 +19,31 @@ ContextForge is a centralized platform designed to manage, secure, evaluate, and
 
 ---
 
+## 📚 Living Documentation & Logs
+
+- **Action & Development Log**: [`DEV_LOG.md`](DEV_LOG.md) (Detailed chronology of all actions, timestamps, and architectural changes)
+- **Feature Specification**: [`specs/001-mcp-skills-registry/spec.md`](specs/001-mcp-skills-registry/spec.md)
+- **UX Specification**: [`UX.md`](UX.md) (Personas, responsive layouts, actionable empty states, WCAG 2.2 AA)
+- **Design System**: [`DESIGN.md`](DESIGN.md) (Hyperstudio Obsidian/Hairline theme tokens)
+
+---
+
+## 🚀 Monorepo Quickstart
+
+```bash
+# 1. Start Local PostgreSQL 16
+docker compose up -d
+
+# 2. Setup Environment
+cp .env.example .env
+
+# 3. Install & Start Monorepo (Concurrent Backend + Frontend)
+npm install
+npm run dev
+```
+
+---
+
 ## 📂 Architecture & Spec-Kit Workflows
 
 ContextForge is built using **GitHub Spec Kit** (`.specify/`):

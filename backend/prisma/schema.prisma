@@ -1,0 +1,151 @@
+// ContextForge Prisma Schema (PostgreSQL 16+)
+// Grounded strictly in specs/001-mcp-skills-registry/spec.md
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  public
+  developer
+  admin
+}
+
+enum ToolRiskLevel {
+  read_only
+  network
+  filesystem
+  destructive
+}
+
+enum ReviewStatus {
+  pending
+  approved
+  rejected
+}
+
+enum ReviewItemType {
+  server
+  skill
+}
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  email         String   @unique @db.VarChar(255)
+  password_hash String   @db.VarChar(255)
+  role          UserRole @default(developer)
+  created_at    DateTime @default(now()) @db.Timestamptz()
+  updated_at    DateTime @updatedAt @db.Timestamptz()
+
+  // Relations
+  servers McpServer[]
+  skills  AiSkill[]
+  configs ClientConfig[]
+  reviews SubmissionReview[]
+
+  @@map("users")
+}
+
+model McpServer {
+  id                    String    @id @default(uuid()) @db.Uuid
+  name                  String    @unique @db.VarChar(100)
+  description           String?   @db.Text
+  repository_url        String?   @db.VarChar(255)
+  install_command       String    @db.VarChar(255)
+  required_env_vars     Json      @default("[]")
+  is_verified           Boolean   @default(false)
+  submitted_by          String    @db.Uuid
+  downloads_count       Int       @default(0)
+  github_stars          Int       @default(0)
+  github_contributors   Int       @default(0)
+  github_last_synced_at DateTime? @db.Timestamptz()
+  is_deleted            Boolean   @default(false)
+  deleted_at            DateTime? @db.Timestamptz()
+  created_at            DateTime  @default(now()) @db.Timestamptz()
+  updated_at            DateTime  @updatedAt @db.Timestamptz()
+
+  // Relations
+  user  User             @relation(fields: [submitted_by], references: [id], onDelete: Restrict)
+  tools ToolDefinition[]
+
+  @@index([is_verified, is_deleted, downloads_count(sort: Desc)], name: "idx_mcp_servers_verified")
+  @@map("mcp_servers")
+}
+
+model ToolDefinition {
+  id           String        @id @default(uuid()) @db.Uuid
+  server_id    String        @db.Uuid
+  name         String        @db.VarChar(100)
+  description  String?       @db.Text
+  input_schema Json          @default("{}")
+  risk_level   ToolRiskLevel @default(read_only)
+  created_at   DateTime      @default(now()) @db.Timestamptz()
+  updated_at   DateTime      @updatedAt @db.Timestamptz()
+
+  // Relations
+  server McpServer @relation(fields: [server_id], references: [id], onDelete: Cascade)
+
+  @@index([server_id], name: "idx_tool_server_id")
+  @@map("tool_definitions")
+}
+
+model AiSkill {
+  id                 String    @id @default(uuid()) @db.Uuid
+  name               String    @unique @db.VarChar(100)
+  description        String?   @db.Text
+  skill_content      String    @db.Text
+  compatible_clients Json      @default("[\"claude_desktop\", \"cursor\", \"cline\", \"antigravity\"]")
+  tags               Json      @default("[]")
+  scan_flags         Json      @default("{}")
+  is_verified        Boolean   @default(false)
+  submitted_by       String    @db.Uuid
+  downloads_count    Int       @default(0)
+  is_deleted         Boolean   @default(false)
+  deleted_at         DateTime? @db.Timestamptz()
+  created_at         DateTime  @default(now()) @db.Timestamptz()
+  updated_at         DateTime  @updatedAt @db.Timestamptz()
+
+  // Relations
+  user User @relation(fields: [submitted_by], references: [id], onDelete: Restrict)
+
+  @@index([is_verified, is_deleted, downloads_count(sort: Desc)], name: "idx_ai_skills_verified")
+  @@map("ai_skills")
+}
+
+model ClientConfig {
+  id                  String   @id @default(uuid()) @db.Uuid
+  user_id             String?  @db.Uuid
+  client_type         String   @db.VarChar(50)
+  selected_server_ids Json     @default("[]")
+  selected_skill_ids  Json     @default("[]")
+  generated_json      Json
+  created_at          DateTime @default(now()) @db.Timestamptz()
+
+  // Relations
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id], name: "idx_client_configs_user_id")
+  @@map("client_configs")
+}
+
+model SubmissionReview {
+  id              String         @id @default(uuid()) @db.Uuid
+  item_type       ReviewItemType
+  item_id         String         @db.Uuid
+  reviewer_id     String         @db.Uuid
+  status          ReviewStatus   @default(pending)
+  flagged_by_scan Boolean        @default(false)
+  review_notes    String?        @db.Text
+  reviewed_at     DateTime       @default(now()) @db.Timestamptz()
+
+  // Relations
+  reviewer User @relation(fields: [reviewer_id], references: [id], onDelete: Restrict)
+
+  @@index([status, item_type], name: "idx_submission_reviews_pending")
+  @@map("submission_reviews")
+}
