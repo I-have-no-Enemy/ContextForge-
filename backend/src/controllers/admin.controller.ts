@@ -26,7 +26,7 @@ export class AdminController {
     if (typeof flagged_by_scan === 'boolean') where.flagged_by_scan = flagged_by_scan;
     if (item_type) where.item_type = item_type;
 
-    const [total, submissions] = await Promise.all([
+    const [total, rawSubmissions] = await Promise.all([
       prisma.submissionReview.count({ where }),
       prisma.submissionReview.findMany({
         where,
@@ -36,7 +36,7 @@ export class AdminController {
         include: {
           reviewer: {
             select: {
-              id: true,
+              user_id: true,
               email: true,
               role: true,
             },
@@ -45,9 +45,15 @@ export class AdminController {
       }),
     ]);
 
+    const formattedSubmissions = rawSubmissions.map((s) => ({
+      ...s,
+      id: s.review_id,
+      reviewer: s.reviewer ? { ...s.reviewer, id: s.reviewer.user_id } : s.reviewer,
+    }));
+
     const totalPages = Math.ceil(total / limit) || 1;
 
-    sendSuccess(res, submissions, 200, {
+    sendSuccess(res, formattedSubmissions, 200, {
       page,
       limit,
       total,
@@ -73,11 +79,12 @@ export class AdminController {
     }
 
     const { item_type, item_id, status, review_notes } = parseResult.data;
+    const currentUserId = req.user!.user_id || req.user!.id!;
 
     // 1. Enforce Polymorphic Integrity: Verify item exists in the specified table
     if (item_type === 'server') {
       const server = await prisma.mcpServer.findUnique({
-        where: { id: item_id },
+        where: { server_id: item_id },
       });
       if (!server) {
         sendError(
@@ -90,7 +97,7 @@ export class AdminController {
       }
     } else if (item_type === 'skill') {
       const skill = await prisma.aiSkill.findUnique({
-        where: { id: item_id },
+        where: { skill_id: item_id },
       });
       if (!skill) {
         sendError(
@@ -109,12 +116,12 @@ export class AdminController {
 
       if (item_type === 'server') {
         await tx.mcpServer.update({
-          where: { id: item_id },
+          where: { server_id: item_id },
           data: { is_verified: isVerified },
         });
       } else {
         await tx.aiSkill.update({
-          where: { id: item_id },
+          where: { skill_id: item_id },
           data: { is_verified: isVerified },
         });
       }
@@ -127,9 +134,9 @@ export class AdminController {
       let updatedReview;
       if (existingPending) {
         updatedReview = await tx.submissionReview.update({
-          where: { id: existingPending.id },
+          where: { review_id: existingPending.review_id },
           data: {
-            reviewer_id: req.user!.id,
+            reviewer_id: currentUserId,
             status,
             review_notes: review_notes || null,
             reviewed_at: new Date(),
@@ -140,7 +147,7 @@ export class AdminController {
           data: {
             item_type,
             item_id,
-            reviewer_id: req.user!.id,
+            reviewer_id: currentUserId,
             status,
             flagged_by_scan: false,
             review_notes: review_notes || null,
@@ -152,7 +159,7 @@ export class AdminController {
       return updatedReview;
     });
 
-    sendSuccess(res, reviewResult, 200);
+    sendSuccess(res, { ...reviewResult, id: reviewResult.review_id }, 200);
   }
 
   /**
@@ -173,11 +180,12 @@ export class AdminController {
     }
 
     const { item_type, item_id, reason } = parseResult.data;
+    const currentUserId = req.user!.user_id || req.user!.id!;
 
     // Verify item exists
     if (item_type === 'server') {
       const server = await prisma.mcpServer.findUnique({
-        where: { id: item_id },
+        where: { server_id: item_id },
       });
       if (!server) {
         sendError(res, 404, 'MCP Server not found.', 'NOT_FOUND');
@@ -185,7 +193,7 @@ export class AdminController {
       }
     } else {
       const skill = await prisma.aiSkill.findUnique({
-        where: { id: item_id },
+        where: { skill_id: item_id },
       });
       if (!skill) {
         sendError(res, 404, 'AI Skill not found.', 'NOT_FOUND');
@@ -199,7 +207,7 @@ export class AdminController {
 
       if (item_type === 'server') {
         await tx.mcpServer.update({
-          where: { id: item_id },
+          where: { server_id: item_id },
           data: {
             is_verified: false,
             is_deleted: true,
@@ -208,7 +216,7 @@ export class AdminController {
         });
       } else {
         await tx.aiSkill.update({
-          where: { id: item_id },
+          where: { skill_id: item_id },
           data: {
             is_verified: false,
             is_deleted: true,
@@ -221,7 +229,7 @@ export class AdminController {
         data: {
           item_type,
           item_id,
-          reviewer_id: req.user!.id,
+          reviewer_id: currentUserId,
           status: 'rejected',
           flagged_by_scan: true,
           review_notes: `[EMERGENCY TAKEDOWN] ${reason}`,
@@ -232,7 +240,7 @@ export class AdminController {
 
     sendSuccess(res, {
       message: `Emergency takedown completed for ${item_type} ${item_id}.`,
-      takedown_log: takedownLog,
+      takedown_log: { ...takedownLog, id: takedownLog.review_id },
     });
   }
 }

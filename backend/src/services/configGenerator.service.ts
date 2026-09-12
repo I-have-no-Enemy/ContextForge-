@@ -1,12 +1,14 @@
 export interface McpServerRecord {
-  id: string;
+  server_id?: string;
+  id?: string;
   name: string;
   install_command: string;
   required_env_vars: any;
 }
 
 export interface AiSkillRecord {
-  id: string;
+  skill_id?: string;
+  id?: string;
   name: string;
   skill_content: string;
 }

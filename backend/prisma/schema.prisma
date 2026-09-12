@@ -35,7 +35,7 @@ enum ReviewItemType {
 }
 
 model User {
-  id            String   @id @default(uuid()) @db.Uuid
+  user_id       String   @id @default(uuid()) @db.Uuid
   email         String   @unique @db.VarChar(255)
   password_hash String   @db.VarChar(255)
   role          UserRole @default(developer)
@@ -52,7 +52,7 @@ model User {
 }
 
 model McpServer {
-  id                    String    @id @default(uuid()) @db.Uuid
+  server_id             String    @id @default(uuid()) @db.Uuid
   name                  String    @unique @db.VarChar(100)
   description           String?   @db.Text
   repository_url        String?   @db.VarChar(255)
@@ -70,7 +70,7 @@ model McpServer {
   updated_at            DateTime  @updatedAt @db.Timestamptz()
 
   // Relations
-  user  User             @relation(fields: [submitted_by], references: [id], onDelete: Restrict)
+  user  User             @relation(fields: [submitted_by], references: [user_id], onDelete: Restrict)
   tools ToolDefinition[]
 
   @@index([is_verified, is_deleted, downloads_count(sort: Desc)], name: "idx_mcp_servers_verified")
@@ -78,7 +78,7 @@ model McpServer {
 }
 
 model ToolDefinition {
-  id           String        @id @default(uuid()) @db.Uuid
+  tool_id      String        @id @default(uuid()) @db.Uuid
   server_id    String        @db.Uuid
   name         String        @db.VarChar(100)
   description  String?       @db.Text
@@ -88,14 +88,14 @@ model ToolDefinition {
   updated_at   DateTime      @updatedAt @db.Timestamptz()
 
   // Relations
-  server McpServer @relation(fields: [server_id], references: [id], onDelete: Cascade)
+  server McpServer @relation(fields: [server_id], references: [server_id], onDelete: Cascade)
 
   @@index([server_id], name: "idx_tool_server_id")
   @@map("tool_definitions")
 }
 
 model AiSkill {
-  id                 String    @id @default(uuid()) @db.Uuid
+  skill_id           String    @id @default(uuid()) @db.Uuid
   name               String    @unique @db.VarChar(100)
   description        String?   @db.Text
   skill_content      String    @db.Text
@@ -111,14 +111,14 @@ model AiSkill {
   updated_at         DateTime  @updatedAt @db.Timestamptz()
 
   // Relations
-  user User @relation(fields: [submitted_by], references: [id], onDelete: Restrict)
+  user User @relation(fields: [submitted_by], references: [user_id], onDelete: Restrict)
 
   @@index([is_verified, is_deleted, downloads_count(sort: Desc)], name: "idx_ai_skills_verified")
   @@map("ai_skills")
 }
 
 model ClientConfig {
-  id                  String   @id @default(uuid()) @db.Uuid
+  config_id           String   @id @default(uuid()) @db.Uuid
   user_id             String?  @db.Uuid
   client_type         String   @db.VarChar(50)
   selected_server_ids Json     @default("[]")
@@ -127,14 +127,14 @@ model ClientConfig {
   created_at          DateTime @default(now()) @db.Timestamptz()
 
   // Relations
-  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [user_id], references: [user_id], onDelete: SetNull)
 
   @@index([user_id], name: "idx_client_configs_user_id")
   @@map("client_configs")
 }
 
 model SubmissionReview {
-  id              String         @id @default(uuid()) @db.Uuid
+  review_id       String         @id @default(uuid()) @db.Uuid
   item_type       ReviewItemType
   item_id         String         @db.Uuid
   reviewer_id     String         @db.Uuid
@@ -144,7 +144,7 @@ model SubmissionReview {
   reviewed_at     DateTime       @default(now()) @db.Timestamptz()
 
   // Relations
-  reviewer User @relation(fields: [reviewer_id], references: [id], onDelete: Restrict)
+  reviewer User @relation(fields: [reviewer_id], references: [user_id], onDelete: Restrict)
 
   @@index([status, item_type], name: "idx_submission_reviews_pending")
   @@map("submission_reviews")

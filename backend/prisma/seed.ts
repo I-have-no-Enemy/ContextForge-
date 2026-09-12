@@ -57,7 +57,7 @@ async function main() {
       install_command: 'npx -y @modelcontextprotocol/server-postgres postgresql://user:pass@localhost:5432/db',
       required_env_vars: ['DATABASE_URL'],
       is_verified: true,
-      submitted_by: dev.id,
+      submitted_by: dev.user_id,
       downloads_count: 1240,
       github_stars: 4800,
       github_contributors: 85,
@@ -93,7 +93,7 @@ async function main() {
       install_command: 'npx -y @modelcontextprotocol/server-filesystem /workspace',
       required_env_vars: ['ALLOWED_DIRECTORIES'],
       is_verified: true,
-      submitted_by: dev.id,
+      submitted_by: dev.user_id,
       downloads_count: 3100,
       github_stars: 5200,
       github_contributors: 92,
@@ -133,7 +133,7 @@ async function main() {
       install_command: 'npx -y @modelcontextprotocol/server-brave-search',
       required_env_vars: ['BRAVE_API_KEY'],
       is_verified: true,
-      submitted_by: dev.id,
+      submitted_by: dev.user_id,
       downloads_count: 890,
       github_stars: 2100,
       github_contributors: 34,
@@ -163,7 +163,7 @@ async function main() {
       install_command: 'npx -y @modelcontextprotocol/server-memory',
       required_env_vars: [],
       is_verified: true,
-      submitted_by: dev.id,
+      submitted_by: dev.user_id,
       downloads_count: 1450,
       github_stars: 3400,
       github_contributors: 41,
@@ -194,7 +194,7 @@ async function main() {
       install_command: 'npx -y terminal-mcp-unverified',
       required_env_vars: ['ALLOW_ROOT'],
       is_verified: false,
-      submitted_by: dev.id,
+      submitted_by: dev.user_id,
       downloads_count: 0,
       tools: {
         create: [
@@ -225,7 +225,7 @@ async function main() {
       tags: ['testing', 'tdd', 'vitest', 'jest'],
       scan_flags: {},
       is_verified: true,
-      submitted_by: dev.id,
+      submitted_by: dev.user_id,
       downloads_count: 850,
     },
   });
@@ -239,7 +239,7 @@ async function main() {
       tags: ['security', 'owasp', 'audit'],
       scan_flags: {},
       is_verified: true,
-      submitted_by: dev.id,
+      submitted_by: dev.user_id,
       downloads_count: 1200,
     },
   });
@@ -253,7 +253,7 @@ async function main() {
       tags: ['minimalist', 'clean-code', 'architecture'],
       scan_flags: {},
       is_verified: true,
-      submitted_by: dev.id,
+      submitted_by: dev.user_id,
       downloads_count: 2150,
     },
   });
@@ -267,7 +267,7 @@ async function main() {
       tags: ['study', 'kmitl', 'education'],
       scan_flags: {},
       is_verified: true,
-      submitted_by: dev.id,
+      submitted_by: dev.user_id,
       downloads_count: 420,
     },
   });
@@ -291,7 +291,7 @@ async function main() {
         riskScore: 100,
       },
       is_verified: false,
-      submitted_by: dev.id,
+      submitted_by: dev.user_id,
       downloads_count: 0,
     },
   });
@@ -302,8 +302,8 @@ async function main() {
   await prisma.submissionReview.create({
     data: {
       item_type: ReviewItemType.server,
-      item_id: srvPending.id,
-      reviewer_id: admin.id,
+      item_id: srvPending.server_id,
+      reviewer_id: admin.user_id,
       status: ReviewStatus.pending,
       flagged_by_scan: false,
       review_notes: 'Initial submission of terminal MCP. Requires manual security inspection of shell commands.',
@@ -313,8 +313,8 @@ async function main() {
   await prisma.submissionReview.create({
     data: {
       item_type: ReviewItemType.skill,
-      item_id: skillFlagged.id,
-      reviewer_id: admin.id,
+      item_id: skillFlagged.skill_id,
+      reviewer_id: admin.user_id,
       status: ReviewStatus.pending,
       flagged_by_scan: true,
       review_notes: 'CRITICAL ALERT: Automated heuristic scanner detected 4 injection patterns (SYS_OVERRIDE, DATA_EXFIL, SECRET_HARVEST, SECRET_HIDING).',
@@ -326,10 +326,10 @@ async function main() {
   // 6. Seed Sample Generated Client Config
   await prisma.clientConfig.create({
     data: {
-      user_id: dev.id,
+      user_id: dev.user_id,
       client_type: 'claude_desktop',
-      selected_server_ids: [srvPostgres.id, srvFilesystem.id],
-      selected_skill_ids: [skillTdd.id],
+      selected_server_ids: [srvPostgres.server_id, srvFilesystem.server_id],
+      selected_skill_ids: [skillTdd.skill_id],
       generated_json: {
         mcpServers: {
           'postgres-mcp-server': {

@@ -23,7 +23,7 @@ export class ServerController {
         ];
       }
 
-      const [total, servers] = await Promise.all([
+      const [total, rawServers] = await Promise.all([
         prisma.mcpServer.count({ where: whereClause }),
         prisma.mcpServer.findMany({
           where: whereClause,
@@ -31,7 +31,7 @@ export class ServerController {
           take: limit,
           orderBy: { downloads_count: 'desc' },
           select: {
-            id: true,
+            server_id: true,
             name: true,
             description: true,
             repository_url: true,
@@ -46,6 +46,7 @@ export class ServerController {
         }),
       ]);
 
+      const servers = rawServers.map((s) => ({ ...s, id: s.server_id }));
       const totalPages = Math.ceil(total / limit) || 1;
 
       sendSuccess(res, servers, 200, {
@@ -64,7 +65,7 @@ export class ServerController {
       const { id } = req.params;
 
       const server = await prisma.mcpServer.findUnique({
-        where: { id },
+        where: { server_id: id },
         include: {
           tools: true,
           user: { select: { email: true } },
@@ -78,14 +79,14 @@ export class ServerController {
 
       // If unverified, only owner or admin can view
       if (!server.is_verified) {
-        const canView = req.user && (req.user.id === server.submitted_by || req.user.role === 'admin');
+        const canView = req.user && ((req.user.user_id || req.user.id) === server.submitted_by || req.user.role === 'admin');
         if (!canView) {
           sendError(res, 404, 'MCP Server not found.', 'SERVER_NOT_FOUND');
           return;
         }
       }
 
-      sendSuccess(res, server);
+      sendSuccess(res, { ...server, id: server.server_id });
     } catch (error) {
       next(error);
     }
@@ -99,6 +100,7 @@ export class ServerController {
       }
 
       const { name, description, repository_url, install_command, required_env_vars } = req.body;
+      const currentUserId = req.user.user_id || req.user.id!;
 
       const existing = await prisma.mcpServer.findUnique({
         where: { name: name.toLowerCase() },
@@ -119,15 +121,15 @@ export class ServerController {
             install_command,
             required_env_vars: required_env_vars || [],
             is_verified: false,
-            submitted_by: req.user!.id,
+            submitted_by: currentUserId,
           },
         });
 
         await tx.submissionReview.create({
           data: {
             item_type: ReviewItemType.server,
-            item_id: server.id,
-            reviewer_id: req.user!.id,
+            item_id: server.server_id,
+            reviewer_id: currentUserId,
             status: ReviewStatus.pending,
             review_notes: 'Community MCP server submitted. Pending administrator review.',
           },
@@ -136,7 +138,7 @@ export class ServerController {
         return server;
       });
 
-      sendSuccess(res, result, 201);
+      sendSuccess(res, { ...result, id: result.server_id }, 201);
     } catch (error) {
       next(error);
     }
@@ -150,7 +152,8 @@ export class ServerController {
       }
 
       const { id } = req.params;
-      const server = await prisma.mcpServer.findUnique({ where: { id } });
+      const currentUserId = req.user.user_id || req.user.id;
+      const server = await prisma.mcpServer.findUnique({ where: { server_id: id } });
 
       if (!server || server.is_deleted) {
         sendError(res, 404, 'MCP Server not found.', 'SERVER_NOT_FOUND');
@@ -158,17 +161,17 @@ export class ServerController {
       }
 
       // Broken Access Control check (IDOR Prevention)
-      if (server.submitted_by !== req.user.id && req.user.role !== 'admin') {
+      if (server.submitted_by !== currentUserId && req.user.role !== 'admin') {
         sendError(res, 403, 'Forbidden: You do not have permission to modify this server.', 'FORBIDDEN');
         return;
       }
 
       const updated = await prisma.mcpServer.update({
-        where: { id },
+        where: { server_id: id },
         data: req.body,
       });
 
-      sendSuccess(res, updated);
+      sendSuccess(res, { ...updated, id: updated.server_id });
     } catch (error) {
       next(error);
     }
@@ -182,7 +185,8 @@ export class ServerController {
       }
 
       const { id } = req.params;
-      const server = await prisma.mcpServer.findUnique({ where: { id } });
+      const currentUserId = req.user.user_id || req.user.id;
+      const server = await prisma.mcpServer.findUnique({ where: { server_id: id } });
 
       if (!server || server.is_deleted) {
         sendError(res, 404, 'MCP Server not found.', 'SERVER_NOT_FOUND');
@@ -190,13 +194,13 @@ export class ServerController {
       }
 
       // Ownership check
-      if (server.submitted_by !== req.user.id && req.user.role !== 'admin') {
+      if (server.submitted_by !== currentUserId && req.user.role !== 'admin') {
         sendError(res, 403, 'Forbidden: You do not have permission to delete this server.', 'FORBIDDEN');
         return;
       }
 
       await prisma.mcpServer.update({
-        where: { id },
+        where: { server_id: id },
         data: {
           is_deleted: true,
           deleted_at: new Date(),
@@ -217,7 +221,8 @@ export class ServerController {
         orderBy: { name: 'asc' },
       });
 
-      sendSuccess(res, tools);
+      const formatted = tools.map((t) => ({ ...t, id: t.tool_id }));
+      sendSuccess(res, formatted);
     } catch (error) {
       next(error);
     }
@@ -231,14 +236,15 @@ export class ServerController {
       }
 
       const { id } = req.params;
-      const server = await prisma.mcpServer.findUnique({ where: { id } });
+      const currentUserId = req.user.user_id || req.user.id;
+      const server = await prisma.mcpServer.findUnique({ where: { server_id: id } });
 
       if (!server || server.is_deleted) {
         sendError(res, 404, 'Parent MCP Server not found.', 'SERVER_NOT_FOUND');
         return;
       }
 
-      if (server.submitted_by !== req.user.id && req.user.role !== 'admin') {
+      if (server.submitted_by !== currentUserId && req.user.role !== 'admin') {
         sendError(res, 403, 'Forbidden: You can only add tools to servers you own.', 'FORBIDDEN');
         return;
       }
@@ -255,7 +261,7 @@ export class ServerController {
         },
       });
 
-      sendSuccess(res, tool, 201);
+      sendSuccess(res, { ...tool, id: tool.tool_id }, 201);
     } catch (error) {
       next(error);
     }

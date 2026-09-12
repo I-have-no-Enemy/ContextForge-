@@ -1,4 +1,5 @@
 export interface McpServer {
+  server_id: string;
   id: string;
   name: string;
   description: string | null;
@@ -12,6 +13,7 @@ export interface McpServer {
 }
 
 export interface AiSkill {
+  skill_id: string;
   id: string;
   name: string;
   description: string | null;
@@ -27,6 +29,7 @@ export interface AiSkill {
 }
 
 export interface GeneratedConfig {
+  config_id: string;
   id: string;
   client_type: string;
   generated_json: Record<string, any>;
@@ -36,6 +39,7 @@ export interface GeneratedConfig {
 }
 
 export interface UserProfile {
+  user_id: string;
   id: string;
   email: string;
   role: 'public' | 'developer' | 'admin';

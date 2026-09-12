@@ -33,14 +33,15 @@ export class AuthController {
           role: role || 'developer',
         },
         select: {
-          id: true,
+          user_id: true,
           email: true,
           role: true,
           created_at: true,
         },
       });
 
-      sendSuccess(res, { user }, 201);
+      const userId = (user as any).user_id || (user as any).id;
+      sendSuccess(res, { user: { ...user, user_id: userId, id: userId } }, 201);
     } catch (error) {
       next(error);
     }
@@ -68,9 +69,11 @@ export class AuthController {
       }
 
       // 3. Generate JWT Token
+      const userId = (user as any).user_id || (user as any).id;
       const token = jwt.sign(
         {
-          id: user.id,
+          user_id: userId,
+          id: userId,
           email: user.email,
           role: user.role,
         },
@@ -89,7 +92,8 @@ export class AuthController {
       sendSuccess(res, {
         token,
         user: {
-          id: user.id,
+          user_id: userId,
+          id: userId,
           email: user.email,
           role: user.role,
         },
@@ -106,10 +110,11 @@ export class AuthController {
         return;
       }
 
+      const lookupId = req.user.user_id || req.user.id;
       const user = await prisma.user.findUnique({
-        where: { id: req.user.id },
+        where: { user_id: lookupId },
         select: {
-          id: true,
+          user_id: true,
           email: true,
           role: true,
           created_at: true,
@@ -122,7 +127,8 @@ export class AuthController {
         return;
       }
 
-      sendSuccess(res, { user });
+      const userId = (user as any).user_id || (user as any).id;
+      sendSuccess(res, { user: { ...user, user_id: userId, id: userId } });
     } catch (error) {
       next(error);
     }

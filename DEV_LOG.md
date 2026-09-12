@@ -448,3 +448,46 @@
   - `npm run test --workspace=backend`: ผ่านฉลุย **54/54 Tests (100% Pass Rate)** ครบทั้ง 8 Test Files 🧪
   - `npm run build --workspace=frontend`: ผ่านฉลุย **0 Errors** (Bundle size: 26.91 kB CSS, 202.57 kB JS) 🎨
 
+---
+
+### 📌 Entry #016: รีแฟกเตอร์ Primary Key ให้ตรงตามชื่อแต่ละ Table (`user_id`, `server_id`, `tool_id`, `skill_id`, `config_id`, `review_id`)
+- **วันและเวลา**: `2026-09-12 13:20:00 +07:00`
+- **ผู้ดำเนินการ**: Antigravity AI Pair Programmer
+- **การกระทำ (Action)**:
+  - แก้ไข `backend/prisma/schema.prisma` เปลี่ยนชื่อฟิลด์ Primary Key จาก `id` ทั่วไปให้เป็นชื่อเฉพาะที่บ่งบอกตารางอย่างชัดเจนตามข้อกำหนดของวิชา Server-Side Web Development:
+    - `users.user_id`
+    - `mcp_servers.server_id`
+    - `tool_definitions.tool_id`
+    - `ai_skills.skill_id`
+    - `client_configs.config_id`
+    - `submission_reviews.review_id`
+  - ปรับปรุง Foreign Key Relations ใน Prisma Models ทั้งหมดให้เชื่อมโยงผ่าน PK ใหม่ (`submitted_by` -> `user_id`, `server_id` -> `server_id`, `reviewer_id` -> `user_id`)
+  - รัน `npx prisma db push --schema=backend/prisma/schema.prisma --force-reset` ซิงค์ Schema ขึ้น Supabase Cloud PostgreSQL ผ่าน IPv4 Session Pooler สำเร็จ (1.50s)
+  - อัปเดต `backend/prisma/seed.ts` ให้เรียกใช้ PK ใหม่ และรัน `npm run seed --workspace=backend` รีเซ็ตข้อมูลตั้งต้นเข้าตารางใน Supabase ครบ 100%
+  - ปรับปรุง Backend Middlewares, Controllers, และ Services:
+    - `backend/src/middlewares/auth.middleware.ts`: อัปเดต `AuthenticatedUser` ให้มี `user_id` และ alias `id`
+    - `backend/src/controllers/auth.controller.ts`: อัปเดตการเลือกและค้นหาด้วย `user_id`
+    - `backend/src/controllers/server.controller.ts`: อัปเดตการค้นหา, เพิ่ม Tool, และ soft-delete ด้วย `server_id`
+    - `backend/src/controllers/skill.controller.ts`: อัปเดตการค้นหาและอัปเดตด้วย `skill_id`
+    - `backend/src/controllers/config.controller.ts`: อัปเดตการค้นหาและสร้าง Snapshot ด้วย `config_id`, `server_id`, `skill_id`
+    - `backend/src/controllers/admin.controller.ts`: อัปเดตการรีวิวและ takedown ด้วย `review_id`, `server_id`, `skill_id`
+  - ปรับปรุง Frontend Interfaces ใน `frontend/src/services/api.ts` รองรับ PK เฉพาะตารางร่วมกับ `id`
+- **ไฟล์ที่สร้าง/แก้ไข**:
+  - `scratch/plan.md`
+  - `scratch/tickets.md`
+  - `backend/prisma/schema.prisma`
+  - `backend/prisma/seed.ts`
+  - `backend/src/middlewares/auth.middleware.ts`
+  - `backend/src/services/configGenerator.service.ts`
+  - `backend/src/controllers/auth.controller.ts`
+  - `backend/src/controllers/server.controller.ts`
+  - `backend/src/controllers/skill.controller.ts`
+  - `backend/src/controllers/config.controller.ts`
+  - `backend/src/controllers/admin.controller.ts`
+  - `frontend/src/services/api.ts`
+  - `DEV_LOG.md`
+- **ผลการทดสอบ/ยืนยัน**:
+  - `npx prisma db push --force-reset`: ฐานข้อมูล Supabase รีเซ็ตและซิงค์โครงสร้างตารางใหม่สำเร็จ (1.50s) 🚀
+  - `npm run seed --workspace=backend`: Seeded successfully 100% 📦
+  - `npm run test --workspace=backend`: ผ่านฉลุย **54/54 Tests (100% Pass Rate)** ครอบคลุมทั้ง 8 Test Files 🧪
+  - `npm run build --workspace=frontend`: ผ่านฉลุย **0 Errors** (Vite build 2.43s) 🎨

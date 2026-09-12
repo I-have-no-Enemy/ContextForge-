@@ -25,21 +25,23 @@ export class ConfigController {
     const { client_type, selected_server_ids, selected_skill_ids } = parseResult.data;
 
     // 1. Verify all selected servers exist, are verified, and are not deleted
-    let servers: Array<{ id: string; name: string; install_command: string; required_env_vars: any }> = [];
+    let servers: Array<{ id: string; server_id: string; name: string; install_command: string; required_env_vars: any }> = [];
     if (selected_server_ids.length > 0) {
-      servers = await prisma.mcpServer.findMany({
+      const rawServers = await prisma.mcpServer.findMany({
         where: {
-          id: { in: selected_server_ids },
+          server_id: { in: selected_server_ids },
           is_verified: true,
           is_deleted: false,
         },
         select: {
-          id: true,
+          server_id: true,
           name: true,
           install_command: true,
           required_env_vars: true,
         },
       });
+
+      servers = rawServers.map((s) => ({ ...s, id: s.server_id }));
 
       if (servers.length !== selected_server_ids.length) {
         sendError(
@@ -53,20 +55,22 @@ export class ConfigController {
     }
 
     // 2. Verify all selected skills exist, are verified, and are not deleted
-    let skills: Array<{ id: string; name: string; skill_content: string }> = [];
+    let skills: Array<{ id: string; skill_id: string; name: string; skill_content: string }> = [];
     if (selected_skill_ids.length > 0) {
-      skills = await prisma.aiSkill.findMany({
+      const rawSkills = await prisma.aiSkill.findMany({
         where: {
-          id: { in: selected_skill_ids },
+          skill_id: { in: selected_skill_ids },
           is_verified: true,
           is_deleted: false,
         },
         select: {
-          id: true,
+          skill_id: true,
           name: true,
           skill_content: true,
         },
       });
+
+      skills = rawSkills.map((s) => ({ ...s, id: s.skill_id }));
 
       if (skills.length !== selected_skill_ids.length) {
         sendError(
@@ -86,7 +90,7 @@ export class ConfigController {
     const newConfig = await prisma.$transaction(async (tx) => {
       const configRecord = await tx.clientConfig.create({
         data: {
-          user_id: req.user?.id || null,
+          user_id: req.user?.user_id || req.user?.id || null,
           client_type,
           selected_server_ids,
           selected_skill_ids,
@@ -96,14 +100,14 @@ export class ConfigController {
 
       if (selected_server_ids.length > 0) {
         await tx.mcpServer.updateMany({
-          where: { id: { in: selected_server_ids } },
+          where: { server_id: { in: selected_server_ids } },
           data: { downloads_count: { increment: 1 } },
         });
       }
 
       if (selected_skill_ids.length > 0) {
         await tx.aiSkill.updateMany({
-          where: { id: { in: selected_skill_ids } },
+          where: { skill_id: { in: selected_skill_ids } },
           data: { downloads_count: { increment: 1 } },
         });
       }
@@ -111,7 +115,8 @@ export class ConfigController {
       return configRecord;
     });
 
-    sendSuccess(res, newConfig, 201);
+    const configId = (newConfig as any).config_id || (newConfig as any).id;
+    sendSuccess(res, { ...newConfig, config_id: configId, id: configId }, 201);
   }
 
   /**
@@ -126,7 +131,7 @@ export class ConfigController {
     }
 
     const config = await prisma.clientConfig.findUnique({
-      where: { id: paramResult.data.id },
+      where: { config_id: paramResult.data.id },
     });
 
     if (!config) {
@@ -134,6 +139,7 @@ export class ConfigController {
       return;
     }
 
-    sendSuccess(res, config);
+    const configId = (config as any).config_id || (config as any).id;
+    sendSuccess(res, { ...config, config_id: configId, id: configId });
   }
 }

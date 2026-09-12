@@ -3,7 +3,8 @@ import jwt from 'jsonwebtoken';
 import { sendError } from '../utils/response.js';
 
 export interface AuthenticatedUser {
-  id: string;
+  user_id: string;
+  id?: string; // ponytail: backward-compatible alias
   email: string;
   role: 'public' | 'developer' | 'admin';
 }
@@ -40,8 +41,13 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthenticatedUser;
-    req.user = decoded;
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    req.user = {
+      user_id: decoded.user_id || decoded.id,
+      id: decoded.user_id || decoded.id,
+      email: decoded.email,
+      role: decoded.role,
+    };
   } catch {
     // Ignore invalid token on optional auth routes
   }
@@ -56,12 +62,19 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthenticatedUser;
-    req.user = decoded;
-    next();
-  } catch (err: any) {
-    sendError(res, 401, 'Invalid or expired authentication token.', 'TOKEN_INVALID');
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    req.user = {
+      user_id: decoded.user_id || decoded.id,
+      id: decoded.user_id || decoded.id,
+      email: decoded.email,
+      role: decoded.role,
+    };
+  } catch (error) {
+    sendError(res, 401, 'Invalid or expired session token.', 'INVALID_TOKEN');
+    return;
   }
+
+  next();
 }
 
 export function requireRole(allowedRoles: ('public' | 'developer' | 'admin')[]) {

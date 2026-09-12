@@ -31,7 +31,7 @@ export class SkillController {
         };
       }
 
-      const [total, skills] = await Promise.all([
+      const [total, rawSkills] = await Promise.all([
         prisma.aiSkill.count({ where: whereClause }),
         prisma.aiSkill.findMany({
           where: whereClause,
@@ -39,7 +39,7 @@ export class SkillController {
           take: limit,
           orderBy: { downloads_count: 'desc' },
           select: {
-            id: true,
+            skill_id: true,
             name: true,
             description: true,
             compatible_clients: true,
@@ -51,6 +51,7 @@ export class SkillController {
         }),
       ]);
 
+      const skills = rawSkills.map((s) => ({ ...s, id: s.skill_id }));
       const totalPages = Math.ceil(total / limit) || 1;
 
       sendSuccess(res, skills, 200, {
@@ -69,7 +70,7 @@ export class SkillController {
       const { id } = req.params;
 
       const skill = await prisma.aiSkill.findUnique({
-        where: { id },
+        where: { skill_id: id },
         include: {
           user: { select: { email: true } },
         },
@@ -82,14 +83,14 @@ export class SkillController {
 
       // If unverified, only owner or admin can inspect
       if (!skill.is_verified) {
-        const canView = req.user && (req.user.id === skill.submitted_by || req.user.role === 'admin');
+        const canView = req.user && ((req.user.user_id || req.user.id) === skill.submitted_by || req.user.role === 'admin');
         if (!canView) {
           sendError(res, 404, 'AI Skill not found.', 'SKILL_NOT_FOUND');
           return;
         }
       }
 
-      sendSuccess(res, skill);
+      sendSuccess(res, { ...skill, id: skill.skill_id });
     } catch (error) {
       next(error);
     }
@@ -103,6 +104,7 @@ export class SkillController {
       }
 
       const { name, description, skill_content, compatible_clients, tags } = req.body;
+      const currentUserId = req.user.user_id || req.user.id!;
 
       const existing = await prisma.aiSkill.findUnique({
         where: { name: name.toLowerCase() },
@@ -127,15 +129,15 @@ export class SkillController {
             tags: tags || [],
             scan_flags: scanResult as any,
             is_verified: false,
-            submitted_by: req.user!.id,
+            submitted_by: currentUserId,
           },
         });
 
         await tx.submissionReview.create({
           data: {
             item_type: ReviewItemType.skill,
-            item_id: skill.id,
-            reviewer_id: req.user!.id,
+            item_id: skill.skill_id,
+            reviewer_id: currentUserId,
             status: ReviewStatus.pending,
             flagged_by_scan: scanResult.prompt_injection_detected,
             review_notes: scanResult.prompt_injection_detected
@@ -147,7 +149,7 @@ export class SkillController {
         return skill;
       });
 
-      sendSuccess(res, result, 201);
+      sendSuccess(res, { ...result, id: result.skill_id }, 201);
     } catch (error) {
       next(error);
     }
@@ -161,7 +163,8 @@ export class SkillController {
       }
 
       const { id } = req.params;
-      const skill = await prisma.aiSkill.findUnique({ where: { id } });
+      const currentUserId = req.user.user_id || req.user.id;
+      const skill = await prisma.aiSkill.findUnique({ where: { skill_id: id } });
 
       if (!skill || skill.is_deleted) {
         sendError(res, 404, 'AI Skill not found.', 'SKILL_NOT_FOUND');
@@ -169,7 +172,7 @@ export class SkillController {
       }
 
       // Broken Access Control check (IDOR Prevention)
-      if (skill.submitted_by !== req.user.id && req.user.role !== 'admin') {
+      if (skill.submitted_by !== currentUserId && req.user.role !== 'admin') {
         sendError(res, 403, 'Forbidden: You do not have permission to modify this skill.', 'FORBIDDEN');
         return;
       }
@@ -183,11 +186,11 @@ export class SkillController {
       }
 
       const updated = await prisma.aiSkill.update({
-        where: { id },
+        where: { skill_id: id },
         data: updateData,
       });
 
-      sendSuccess(res, updated);
+      sendSuccess(res, { ...updated, id: updated.skill_id });
     } catch (error) {
       next(error);
     }
@@ -201,7 +204,8 @@ export class SkillController {
       }
 
       const { id } = req.params;
-      const skill = await prisma.aiSkill.findUnique({ where: { id } });
+      const currentUserId = req.user.user_id || req.user.id;
+      const skill = await prisma.aiSkill.findUnique({ where: { skill_id: id } });
 
       if (!skill || skill.is_deleted) {
         sendError(res, 404, 'AI Skill not found.', 'SKILL_NOT_FOUND');
@@ -209,13 +213,13 @@ export class SkillController {
       }
 
       // Ownership check
-      if (skill.submitted_by !== req.user.id && req.user.role !== 'admin') {
+      if (skill.submitted_by !== currentUserId && req.user.role !== 'admin') {
         sendError(res, 403, 'Forbidden: You do not have permission to delete this skill.', 'FORBIDDEN');
         return;
       }
 
       await prisma.aiSkill.update({
-        where: { id },
+        where: { skill_id: id },
         data: {
           is_deleted: true,
           deleted_at: new Date(),
