@@ -12,13 +12,14 @@
 
 ## 🕒 สรุปประวัติการดำเนินงาน (Timeline Overview)
 
-| ลำดับ | วันที่ & เวลา (GMT+7) | หัวข้อการดำเนินการ | หมวดหมู่ | Commit Hash |
-| :---: | :--- | :--- | :---: | :---: |
-| 1 | 2026-09-12 10:45:00 | Initialize Git repo, Spec Kit, & Constitution | Architecture | `4ba44c7` |
-| 2 | 2026-09-12 11:05:00 | Scaffold Feature Specification `001-mcp-skills-registry/spec.md` | Specification | `1f1b07d` |
-| 3 | 2026-09-12 11:22:00 | Add `UX.md`, `DESIGN.md`, CSS tokens, & `tailwind.config.js` | UX / UI | `f63e82a` |
-| 4 | 2026-09-12 11:55:00 | Complete Grilling Interview & Finalize Architecture Decisions | ADR / Grilling | - |
-| 5 | 2026-09-12 11:58:00 | Scaffold Root Monorepo, Docker Compose, Backend & Frontend Skeletons | Implementation | *Pending* |
+| ลำดับ | วันที่ & เวลา (GMT+7) | หัวข้อการดำเนินการ                                                   |    หมวดหมู่    | Commit Hash |
+| :---: | :-------------------- | :------------------------------------------------------------------- | :------------: | :---------: |
+|   1   | 2026-09-12 10:45:00   | Initialize Git repo, Spec Kit, & Constitution                        |  Architecture  |  `4ba44c7`  |
+|   2   | 2026-09-12 11:05:00   | Scaffold Feature Specification `001-mcp-skills-registry/spec.md`     | Specification  |  `1f1b07d`  |
+|   3   | 2026-09-12 11:22:00   | Add `UX.md`, `DESIGN.md`, CSS tokens, & `tailwind.config.js`         |    UX / UI     |  `f63e82a`  |
+|   4   | 2026-09-12 11:55:00   | Complete Grilling Interview & Finalize Architecture Decisions        | ADR / Grilling |      -      |
+|   5   | 2026-09-12 11:58:00   | Scaffold Root Monorepo, Docker Compose, Backend & Frontend Skeletons | Implementation |  `7b9ce6f`  |
+|   6   | 2026-09-12 12:08:00   | Create Initial SQL Migration, GIN Indexes & Comprehensive Seed Script (`seed.ts`) |    Database    |  *Pending*  |
 
 ---
 
@@ -141,4 +142,32 @@
   - `frontend/src/App.tsx`
 - **ผลการทดสอบ/ยืนยัน**:
   - `prisma format`: ตรวจสอบ Schema โหลดและจัดรูปแบบสำเร็จ 100% 🚀
+
+---
+
+### 📌 Entry #006: สร้างไฟล์ Migration แรก (PostgreSQL DDL + GIN Indexes) และสคริปต์ Seeding ข้อมูล
+- **วันและเวลา**: `2026-09-12 12:08:00 +07:00`
+- **ผู้ดำเนินการ**: Antigravity AI Pair Programmer
+- **การกระทำ (Action)**:
+  - สกัดไฟล์ SQL DDL Migration ตั้งต้นผ่าน `prisma migrate diff` เก็บไว้ที่ `backend/prisma/migrations/20260912000001_init_contextforge_schema/migration.sql`
+  - เสริมคำสั่งสร้าง GIN Indexes บนคอลัมน์ JSONB ทุกตาราง (`input_schema`, `selected_server_ids`, `selected_skill_ids`, `tags`) เพื่อรองรับการสืบค้นข้อมูลเชิงลึกความเร็วสูง
+  - เขียนสคริปต์ `backend/prisma/seed.ts` สร้างข้อมูลจำลองสำหรับทดสอบครบถ้วน:
+    - **3 Users**: Admin (`admin@contextforge.dev`), Developer (`developer@contextforge.dev`), Visitor (`visitor@contextforge.dev`) พร้อมแฮชรหัสผ่านด้วย `bcrypt`
+    - **5 MCP Servers**: `postgres-mcp-server`, `filesystem-mcp-server`, `brave-search-mcp`, `memory-graph-mcp`, และ `terminal-exec-mcp` (Pending Review)
+    - **5 AI Skills**: `tdd-mastery`, `security-auditor`, `ponytail-minimalist`, `academic-deep-dive`, และ `stealth-exfiltrator-test` (Flagged จากการตรวจจับ Prompt Injection)
+    - **2 Submission Reviews**: ใน Admin Queue (1 Server ตรวจสอบสิทธิ์ + 1 Malicious Skill ที่ติด Flag ความเสี่ยง 100%)
+    - **1 Client Config**: ตัวอย่าง JSON Snapshot ที่สร้างสำเร็จสำหรับ Claude Desktop
+  - ทำการ Generate `@prisma/client` v5.22.0
+  - แก้ไขการตั้งค่า TypeScript ใน `backend/package.json` (`"type": "module"`) และ `backend/tsconfig.json`
+- **ไฟล์ที่สร้าง/แก้ไข**:
+  - `backend/prisma/migrations/20260912000001_init_contextforge_schema/migration.sql`
+  - `backend/prisma/seed.ts`
+  - `backend/.env`
+  - `backend/package.json`
+  - `backend/tsconfig.json`
+  - `DEV_LOG.md`
+- **ผลการทดสอบ/ยืนยัน**:
+  - `npm run test --workspace=backend`: ผ่านการทดสอบ Vitest ครบ 8/8 Tests (100% Pass Rate) 🧪
+  - `tsc --noEmit`: คอมไพล์ TypeScript ผ่านฉลุย ไม่มี Type Errors (Exit code 0) 🚀
+
 
