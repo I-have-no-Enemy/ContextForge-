@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { sendSuccess } from '../utils/response.js';
 
 import { authRouter } from './auth.routes.js';
+import { serverRouter } from './server.routes.js';
 
 export const apiRouter = Router();
 
@@ -18,8 +19,10 @@ apiRouter.get('/health', (_req, res) => {
 // Authentication & Identity Routes
 apiRouter.use('/auth', authRouter);
 
+// MCP Server & Tool Registry Routes
+apiRouter.use('/servers', serverRouter);
+
 // Route mounts (Stubs will be connected as controllers are implemented)
-// apiRouter.use('/servers', serverRouter);
 // apiRouter.use('/skills', skillRouter);
 // apiRouter.use('/configs', configRouter);
 // apiRouter.use('/admin', adminRouter);

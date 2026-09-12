@@ -20,7 +20,8 @@
 |   4   | 2026-09-12 11:55:00   | Complete Grilling Interview & Finalize Architecture Decisions        | ADR / Grilling |      -      |
 |   5   | 2026-09-12 11:58:00   | Scaffold Root Monorepo, Docker Compose, Backend & Frontend Skeletons | Implementation |  `7b9ce6f`  |
 |   6   | 2026-09-12 12:08:00   | Create Initial SQL Migration, GIN Indexes & Comprehensive Seed Script (`seed.ts`) |    Database    |  `eaf83c8`  |
-|   7   | 2026-09-12 12:13:00   | Implement Slice 1: Authentication & Identity Engine (`/api/v1/auth/*`) | Authentication |  *Pending*  |
+|   7   | 2026-09-12 12:13:00   | Implement Slice 1: Authentication & Identity Engine (`/api/v1/auth/*`) | Authentication |  `8f2abff`  |
+|   8   | 2026-09-12 12:19:00   | Implement Slice 2: MCP Server & Tool Registry Endpoints (`/api/v1/servers/*`) |  MCP & Tools   |  *Pending*  |
 
 ---
 
@@ -201,6 +202,40 @@
 - **ผลการทดสอบ/ยืนยัน**:
   - `npm run test --workspace=backend`: ผ่านฉลุย **18/18 Tests (100% Pass Rate)** ครอบคลุมทั้ง 4 Test Files 🧪
   - `npx tsc --noEmit`: ผ่านฉลุย **0 Type Errors** (Exit code 0) 🚀
+
+---
+
+### 📌 Entry #008: พัฒนา Slice 2 — MCP Server & Tool Registry Endpoints (`/api/v1/servers/*`)
+- **วันและเวลา**: `2026-09-12 12:19:00 +07:00`
+- **ผู้ดำเนินการ**: Antigravity AI Pair Programmer
+- **การกระทำ (Action)**:
+  - แตก Ticket รายละเอียดย่อยลง `scratch/tickets.md` (Ticket-004 Validation, Ticket-005 Controller/Ownership RBAC, Ticket-006 Integration Tests)
+  - สร้าง Input Validator ด้วย Zod ใน `backend/src/validators/server.validator.ts`:
+    - `createServerSchema`: ตรวจสอบชื่อ Server (alphanumeric, hyphens), URL repository, คำสั่ง install, และ array ของ env var names
+    - `updateServerSchema`: Partial updates สำหรับแก้ไขข้อมูล
+    - `createToolSchema`: ตรวจสอบ `name`, `description`, `input_schema` (JSON Schema object), และ `risk_level` enum (`read_only`, `network`, `filesystem`, `destructive`)
+  - สร้าง Controller ใน `backend/src/controllers/server.controller.ts`:
+    - `GET /api/v1/servers`: รองรับ Public Discovery แบบ Pagination (`page`, `limit`), Full-text search (case-insensitive ILIKE), และกรองเฉพาะ `is_verified: true, is_deleted: false`
+    - `GET /api/v1/servers/:id`: ดึงรายละเอียด Server พร้อมรายชื่อ Tools ย่อย และ Submitter (คัดกรองความปลอดภัย: Server ที่ยังไม่ Verified จะเปิดให้ดูได้เฉพาะเจ้าของหรือ Admin เท่านั้น)
+    - `POST /api/v1/servers`: ตรวจสอบสิทธิ์ผู้ใช้, ตั้งค่า `is_verified: false` เริ่มต้น, และผูกเข้ากับ `submission_reviews` แบบ Database Transaction (`$transaction`) เพื่อส่งเข้าคิว Admin อัตโนมัติ
+    - `PATCH /api/v1/servers/:id`: **ป้องกันช่องโหว่ OWASP A01: Broken Access Control (IDOR)** โดยตรวจสอบ `submitted_by === req.user.id` อย่างเข้มงวด หาก User อื่นพยายามแก้ไขจะถูกปฏิเสธด้วย HTTP 403 Forbidden ทันที
+    - `DELETE /api/v1/servers/:id`: ตรวจสอบความเป็นเจ้าของ และทำ Soft Delete (`is_deleted: true, deleted_at: new Date()`) เพื่อรักษาความถูกต้องของ Client Config ในอดีต
+    - `GET /api/v1/servers/:id/tools`: แสดงรายการ Tool Definitions ของ Server
+    - `POST /api/v1/servers/:id/tools`: ตรวจสอบสิทธิ์เจ้าของ Server ก่อนอนุญาตให้เพิ่ม Tool Definition ใหม่
+  - สร้าง Route ใน `backend/src/routes/server.routes.ts` และเชื่อมเข้ากับ `apiRouter.use('/servers', serverRouter)` ใน `backend/src/routes/index.ts`
+  - เขียน Integration Test Suite ครบวงจรใน `backend/src/__tests__/servers.test.ts` (10 Test Cases ครอบคลุม Public Listing, Pagination, Unverified Gating, Review Queueing, IDOR Prevention, Soft Delete, และ Tool Definition)
+- **ไฟล์ที่สร้าง/แก้ไข**:
+  - `scratch/tickets.md`
+  - `backend/src/validators/server.validator.ts`
+  - `backend/src/controllers/server.controller.ts`
+  - `backend/src/routes/server.routes.ts`
+  - `backend/src/routes/index.ts`
+  - `backend/src/__tests__/servers.test.ts`
+  - `DEV_LOG.md`
+- **ผลการทดสอบ/ยืนยัน**:
+  - `npm run test --workspace=backend`: ผ่านฉลุย **28/28 Tests (100% Pass Rate)** ครอบคลุมทั้ง 5 Test Files 🧪
+  - `npx tsc --noEmit`: คอมไพล์ TypeScript ผ่านฉลุย **0 Type Errors** (Exit code 0) 🚀
+
 
 
 
