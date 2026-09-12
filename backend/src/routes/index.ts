@@ -4,6 +4,7 @@ import { sendSuccess } from '../utils/response.js';
 import { authRouter } from './auth.routes.js';
 import { serverRouter } from './server.routes.js';
 import { skillRouter } from './skill.routes.js';
+import { configRouter } from './config.routes.js';
 
 export const apiRouter = Router();
 
@@ -26,6 +27,9 @@ apiRouter.use('/servers', serverRouter);
 // AI Skills & Playbook Routes
 apiRouter.use('/skills', skillRouter);
 
-// Route mounts (Stubs will be connected as controllers are implemented)
-// apiRouter.use('/configs', configRouter);
+// Multi-Client Configuration Generation Routes
+apiRouter.use('/configs', configRouter);
+
+// Admin Governance Routes (connected in Slice 5)
 // apiRouter.use('/admin', adminRouter);
+

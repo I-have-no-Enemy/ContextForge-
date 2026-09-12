@@ -267,6 +267,38 @@
   - `npm run test --workspace=backend`: ผ่านฉลุย **36/36 Tests (100% Pass Rate)** ครอบคลุมทั้ง 6 Test Files 🧪
   - `npx tsc --noEmit`: คอมไพล์ TypeScript ผ่านฉลุย **0 Type Errors** (Exit code 0) 🚀
 
+---
+
+### 📌 Entry #010: พัฒนา Slice 4 — Multi-Client Config Generation Endpoints (`/api/v1/configs/*`)
+- **วันและเวลา**: `2026-09-12 12:27:00 +07:00`
+- **ผู้ดำเนินการ**: Antigravity AI Pair Programmer
+- **การกระทำ (Action)**:
+  - แตก Ticket รายละเอียดย่อยลง `scratch/tickets.md` (Ticket-010 Validation, Ticket-011 Controller/Transaction, Ticket-012 Integration Tests)
+  - สร้าง Input Validator ด้วย Zod ใน `backend/src/validators/config.validator.ts`:
+    - `generateConfigSchema`: ตรวจสอบ `client_type` enum (`claude_desktop`, `cursor`, `cline`, `antigravity`), Arrays of UUIDs สำหรับ `selected_server_ids` และ `selected_skill_ids`, พร้อม Custom Refinement ป้องกันการส่ง Array ว่างเปล่าทั้งคู่
+    - `configIdParamSchema`: ตรวจสอบ UUID ของ snapshot configuration
+  - สร้าง Controller ใน `backend/src/controllers/config.controller.ts`:
+    - `POST /api/v1/configs/generate`:
+      - รองรับทั้ง Anonymous user และ Authenticated user (`optionalAuth` แนบ `user_id` หากล็อกอิน)
+      - ตรวจสอบความถูกต้องของ Server IDs และ Skill IDs ในฐานข้อมูลอย่างเข้มงวด (ต้องเป็น `is_verified = true` และ `is_deleted = false`) หากพบ ID ปลอม/ไม่ผ่านการยืนยันจะตีกลับด้วย HTTP 400 (`INVALID_SELECTION`) ทันที ป้องกันการแอบสอดไส้ Tools อันตราย
+      - ประมวลผล JSON snapshot ด้วย Deep Module `ConfigGenerator.generate()`
+      - รัน Database `$transaction` เพื่อบันทึก Snapshot ลงตาราง `client_configs` และเพิ่มค่า `downloads_count` (+1) ให้แก่ MCP Servers และ AI Skills ทุกตัวที่ถูกเลือกพร้อมกันแบบ Atomic
+    - `GET /api/v1/configs/:id`: ดึง Immutable snapshot ตาม UUID (HTTP 200 หรือ HTTP 404 หากไม่พบ)
+  - เชื่อมโยง Routes ใน `backend/src/routes/config.routes.ts` และเปิดใช้งาน Mount `apiRouter.use('/configs', configRouter)` ใน `backend/src/routes/index.ts`
+  - พัฒนา Integration Test Suite ใน `backend/src/__tests__/configs.test.ts` (9 Test Cases ครอบคลุม Anonymous generation, Authenticated user with user_id, Empty selection validation rejection, Invalid client_type rejection, Unverified/missing server rejection, Unverified/missing skill rejection, Snapshot retrieval, 404 not found, และ 400 invalid UUID)
+- **ไฟล์ที่สร้าง/แก้ไข**:
+  - `scratch/tickets.md`
+  - `backend/src/validators/config.validator.ts`
+  - `backend/src/controllers/config.controller.ts`
+  - `backend/src/routes/config.routes.ts`
+  - `backend/src/routes/index.ts`
+  - `backend/src/__tests__/configs.test.ts`
+  - `DEV_LOG.md`
+- **ผลการทดสอบ/ยืนยัน**:
+  - `npm run test --workspace=backend`: ผ่านฉลุย **45/45 Tests (100% Pass Rate)** ครอบคลุมทั้ง 7 Test Files 🧪
+  - `npx tsc --noEmit`: คอมไพล์ TypeScript ผ่านฉลุย **0 Type Errors** (Exit code 0) 🚀
+
+
 
 
 
