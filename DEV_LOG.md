@@ -19,7 +19,8 @@
 |   3   | 2026-09-12 11:22:00   | Add `UX.md`, `DESIGN.md`, CSS tokens, & `tailwind.config.js`         |    UX / UI     |  `f63e82a`  |
 |   4   | 2026-09-12 11:55:00   | Complete Grilling Interview & Finalize Architecture Decisions        | ADR / Grilling |      -      |
 |   5   | 2026-09-12 11:58:00   | Scaffold Root Monorepo, Docker Compose, Backend & Frontend Skeletons | Implementation |  `7b9ce6f`  |
-|   6   | 2026-09-12 12:08:00   | Create Initial SQL Migration, GIN Indexes & Comprehensive Seed Script (`seed.ts`) |    Database    |  *Pending*  |
+|   6   | 2026-09-12 12:08:00   | Create Initial SQL Migration, GIN Indexes & Comprehensive Seed Script (`seed.ts`) |    Database    |  `eaf83c8`  |
+|   7   | 2026-09-12 12:13:00   | Implement Slice 1: Authentication & Identity Engine (`/api/v1/auth/*`) | Authentication |  *Pending*  |
 
 ---
 
@@ -169,5 +170,37 @@
 - **ผลการทดสอบ/ยืนยัน**:
   - `npm run test --workspace=backend`: ผ่านการทดสอบ Vitest ครบ 8/8 Tests (100% Pass Rate) 🧪
   - `tsc --noEmit`: คอมไพล์ TypeScript ผ่านฉลุย ไม่มี Type Errors (Exit code 0) 🚀
+
+---
+
+### 📌 Entry #007: พัฒนา Slice 1 — Authentication & Identity Engine (`/api/v1/auth/*`)
+- **วันและเวลา**: `2026-09-12 12:13:00 +07:00`
+- **ผู้ดำเนินการ**: Antigravity AI Pair Programmer
+- **การกระทำ (Action)**:
+  - แตก Ticket รายละเอียดย่อยลง `scratch/tickets.md` (Ticket-001 Validation, Ticket-002 Controller/Routes, Ticket-003 Integration Tests)
+  - สร้าง Input Validator ด้วย Zod ใน `backend/src/validators/auth.validator.ts`:
+    - `registerSchema`: ตรวจสอบรูปแบบ Email, รหัสผ่าน $\ge 8$ ตัวอักษรพร้อมตัวอักษรและตัวเลข, Role (`developer` หรือ `public`)
+    - `loginSchema`: ตรวจสอบความถูกต้องของ Email และ Password
+    - `validateBody`: Middleware คืน HTTP 400 Bad Request พร้อมระบุ Field และสาเหตุชัดเจนเมื่อ Validation ผิดพลาด
+  - สร้าง Controller ใน `backend/src/controllers/auth.controller.ts`:
+    - `POST /api/v1/auth/register`: ตรวจจับอีเมลซ้ำ (HTTP 409), แฮชรหัสผ่านด้วย `bcrypt` (10 rounds), สร้าง User ใหม่ และคืน User Object (ตัด `password_hash` ออกอย่างปลอดภัย)
+    - `POST /api/v1/auth/login`: ตรวจสอบรหัสผ่าน, ออก stateless JWT Token (อายุ 24 ชม.), เซ็ต `token` ลงใน HttpOnly Cookie (`sameSite: strict`), และคืน Bearer Token ใน JSON Response (Dual-Delivery)
+    - `GET /api/v1/auth/me`: คุ้มกันด้วย `requireAuth` Middleware, คืน Profile ของ User ตาม Token
+    - `POST /api/v1/auth/logout`: สั่งเคลียร์ HttpOnly Cookie
+  - สร้างและเชื่อมต่อ Route ใน `backend/src/routes/auth.routes.ts` และเชื่อมเข้ากับ `apiRouter.use('/auth', authRouter)` ใน `backend/src/routes/index.ts`
+  - แก้ไข Type Assertion ของ `expiresIn` ใน `auth.controller.ts` ให้เข้ากันได้กับ TypeScript Strict Mode
+  - เขียน Integration Test Suite ครบวงจรใน `backend/src/__tests__/auth.test.ts` ครอบคลุม 10 Test Cases (Positive, Validation error, Duplicate email, Wrong password, Missing token, Logout)
+- **ไฟล์ที่สร้าง/แก้ไข**:
+  - `scratch/tickets.md`
+  - `backend/src/validators/auth.validator.ts`
+  - `backend/src/controllers/auth.controller.ts`
+  - `backend/src/routes/auth.routes.ts`
+  - `backend/src/routes/index.ts`
+  - `backend/src/__tests__/auth.test.ts`
+  - `DEV_LOG.md`
+- **ผลการทดสอบ/ยืนยัน**:
+  - `npm run test --workspace=backend`: ผ่านฉลุย **18/18 Tests (100% Pass Rate)** ครอบคลุมทั้ง 4 Test Files 🧪
+  - `npx tsc --noEmit`: ผ่านฉลุย **0 Type Errors** (Exit code 0) 🚀
+
 
 

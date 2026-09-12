@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { sendSuccess } from '../utils/response.js';
 
+import { authRouter } from './auth.routes.js';
+
 export const apiRouter = Router();
 
 // Healthcheck & System Telemetry Endpoint
@@ -13,8 +15,10 @@ apiRouter.get('/health', (_req, res) => {
   });
 });
 
+// Authentication & Identity Routes
+apiRouter.use('/auth', authRouter);
+
 // Route mounts (Stubs will be connected as controllers are implemented)
-// apiRouter.use('/auth', authRouter);
 // apiRouter.use('/servers', serverRouter);
 // apiRouter.use('/skills', skillRouter);
 // apiRouter.use('/configs', configRouter);
