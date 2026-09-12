@@ -358,6 +358,41 @@
   - `npm run test --workspace=backend`: ผ่านฉลุย **54/54 Tests (100% Pass Rate)** ครอบคลุมทั้ง 8 Test Files 🧪
   - `npx tsc --noEmit` (ทั้ง frontend & backend): **0 Type Errors** 🎯
 
+---
+
+### 📌 Entry #013: แก้ไข Environment Resolution, รัน Prisma DB Push, Database Seeding และปรับแต่ง Hyperstudio Design Tokens
+- **วันและเวลา**: `2026-09-12 12:41:00 +07:00`
+- **ผู้ดำเนินการ**: Antigravity AI Pair Programmer
+- **การกระทำ (Action)**:
+  - แก้ไขปัญหา Prisma Schema Validation Error (`P1012 Environment variable not found: DATABASE_URL`) โดยสร้างไฟล์ `.env` ที่ Root Directory ของ ContextForge เพื่อให้คำสั่ง `npx prisma db push` ที่รันจากโฟลเดอร์ Root ค้นพบตัวแปรสภาพแวดล้อมได้ถูกต้อง
+  - ดำเนินการรัน `npx prisma db push --schema=backend/prisma/schema.prisma` สำเร็จ ซิงค์ตารางทั้ง 6 ตาราง (`users`, `mcp_servers`, `tool_definitions`, `ai_skills`, `client_configs`, `submission_reviews`) เข้าสู่ PostgreSQL Container เรียบร้อย
+  - ดำเนินการรัน `npm run seed --workspace=backend` สำเร็จ ใส่ข้อมูลเริ่มต้นครบ 100%:
+    - 3 บัญชีผู้ใช้: `admin@contextforge.dev` (Admin), `developer@contextforge.dev` (Dev), `visitor@contextforge.dev` (Public)
+    - 5 MCP Servers & Tools
+    - 5 AI Skills (รวม 1 Flagged Security Sample เพื่อทดสอบระบบตรวจจับ)
+    - 2 Submission Reviews ในคิวตรวจสอบแอดมิน
+    - 1 Sample ClientConfig
+  - แก้ไขปัญหา Frontend Tailwind v4 & Design Tokens:
+    - เชื่อมโยงปลั๊กอิน `@tailwindcss/vite` เข้าสู่ `frontend/vite.config.ts` ในอาร์เรย์ `plugins: [react(), tailwindcss()]`
+    - เพิ่มคำสั่ง `@import "tailwindcss";` ใน `frontend/src/index.css` เพื่อให้ Tailwind v4 คอมไพล์ Utilities ครบถ้วน (ขนาด CSS Bundle เพิ่มขึ้นจาก 3.30 kB เป็น 25.76 kB)
+    - อัปเดต `frontend/src/App.tsx` ให้ประยุกต์ใช้ Design Tokens จาก `styles/tokens.json` อย่างสมบูรณ์:
+      - พื้นหลัง Obsidian (`#101010`), การ์ด Carbon (`#080808`), ขอบ Graphite (`#212121`), ข้อความ Chalk (`#f3f3f3`) และ Smoke (`#9c9c9c`)
+      - ปุ่ม Action สไตล์ `.btn-pill` (Signal White `#ffffff` ตัด Obsidian `#101010`)
+      - อัปเดตข้อมูล Quick Login ให้ตรงกับ Database Seed จริง (`admin@contextforge.dev` / `AdminPassword123!` และ `developer@contextforge.dev` / `DevPassword123!`)
+      - เพิ่มแบนเนอร์แจ้งเตือนพร้อมปุ่ม Retry อัตโนมัติหาก Database ขัดข้อง
+- **ไฟล์ที่สร้าง/แก้ไข**:
+  - `.env` (ContextForge Root)
+  - `frontend/vite.config.ts`
+  - `frontend/src/index.css`
+  - `frontend/src/App.tsx`
+  - `DEV_LOG.md`
+- **ผลการทดสอบ/ยืนยัน**:
+  - `npx prisma db push`: ซิงค์ตารางสำเร็จ Done in 249ms 🚀
+  - `npm run seed --workspace=backend`: Seeded successfully 100% ฐานข้อมูลพร้อมใช้งานเต็มรูปแบบ 📦
+  - `npm run build --workspace=frontend`: ผ่านฉลุย 0 Errors (25.76 kB CSS พร้อม Tailwind v4 utilities) 🎨
+  - `npm run test --workspace=backend`: 54/54 Tests ผ่านฉลุย 100% 🧪
+
+
 
 
 
