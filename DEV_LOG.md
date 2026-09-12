@@ -392,6 +392,36 @@
   - `npm run build --workspace=frontend`: ผ่านฉลุย 0 Errors (25.76 kB CSS พร้อม Tailwind v4 utilities) 🎨
   - `npm run test --workspace=backend`: 54/54 Tests ผ่านฉลุย 100% 🧪
 
+---
+
+### 📌 Entry #014: ยกระดับ UI ด้วย shadcn/ui Components และรองรับการเชื่อมต่อ Supabase Database
+- **วันและเวลา**: `2026-09-12 12:56:00 +07:00`
+- **ผู้ดำเนินการ**: Antigravity AI Pair Programmer
+- **การกระทำ (Action)**:
+  - ติดตั้ง `clsx` และ `tailwind-merge` ใน `frontend/` และสร้าง Standard Utility Helper `cn()` ใน `frontend/src/lib/utils.ts` ตามสเปก shadcn/ui Open Code Architecture
+  - สร้างชุด Flat-file Component Primitives ใน `frontend/src/components/ui/` โดยผสาน Hyperstudio Design Tokens เข้ากับ shadcn UI APIs:
+    - `Button` (`frontend/src/components/ui/button.tsx`): รองรับ Variants `default` (Signal White), `secondary`, `outline`, `ghost`, `destructive`, และ `pill`
+    - `Badge` (`frontend/src/components/ui/badge.tsx`): รองรับ Variants `default`, `secondary`, `success`, `warning` (LLM01 Flagged), `destructive`
+    - `Card` (`frontend/src/components/ui/card.tsx`): Primitives ครบชุด `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`
+    - `TabsList` (`frontend/src/components/ui/tabs.tsx`): Accessible Tab switcher สำหรับสลับ Servers, Skills และ Admin Queue
+    - `Dialog` (`frontend/src/components/ui/dialog.tsx`): Modal Dialog สำหรับแสดงผลลัพธ์ Config JSON และ Inspect `SKILL.md`
+  - ปรับปรุง `frontend/src/App.tsx` ให้ใช้ Component Primitives จาก shadcn/ui ทั้งหมด ส่งผลให้หน้าตาแอประดับ Production มีมิติ สวยงาม สะอาดตา และคงไว้ซึ่งคอนเซปต์ Hyperstudio (Obsidian, Carbon, Graphite, Chalk, Smoke, Compass Gold)
+  - จัดเตรียมสถาปัตยกรรม Database Connection ให้รองรับทั้ง Local Docker PostgreSQL และ Supabase Cloud PostgreSQL เพียงแค่เปลี่ยน Connection String ใน `.env`
+- **ไฟล์ที่สร้าง/แก้ไข**:
+  - `frontend/package.json`
+  - `frontend/src/lib/utils.ts`
+  - `frontend/src/components/ui/button.tsx`
+  - `frontend/src/components/ui/badge.tsx`
+  - `frontend/src/components/ui/card.tsx`
+  - `frontend/src/components/ui/tabs.tsx`
+  - `frontend/src/components/ui/dialog.tsx`
+  - `frontend/src/App.tsx`
+  - `DEV_LOG.md`
+- **ผลการทดสอบ/ยืนยัน**:
+  - `npm run build --workspace=frontend`: ผ่านฉลุย **0 Errors** (Bundle size: 26.91 kB CSS, 202.57 kB JS) 🚀
+  - `npm run test --workspace=backend`: ผ่านฉลุย **54/54 Tests (100% Pass Rate)** 🧪
+
+
 
 
 
