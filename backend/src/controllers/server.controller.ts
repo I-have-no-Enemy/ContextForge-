@@ -41,6 +41,8 @@ export class ServerController {
             github_stars: true,
             github_contributors: true,
             created_at: true,
+            is_verified: true,
+            tools: { select: { name: true, risk_level: true } },
             _count: { select: { tools: true } },
           },
         }),

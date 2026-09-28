@@ -1,22 +1,36 @@
 import * as React from 'react';
 import { cn } from '../../lib/utils';
 
-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'secondary' | 'outline' | 'success' | 'warning' | 'destructive';
+export interface StatusBadgeProps {
+  /** live: pulse-green dot. idle: hollow ring. alert: chalk frame and diamond. */
+  tone?: 'live' | 'idle' | 'alert';
+  children: React.ReactNode;
+  className?: string;
 }
 
-export function Badge({ className, variant = 'default', ...props }: BadgeProps) {
-  const baseStyles =
-    'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-mono font-medium transition-colors';
+export function StatusBadge({ tone = 'live', children, className }: StatusBadgeProps) {
+  return (
+    <span className={cn('cf-badge', `cf-badge--${tone}`, className)}>
+      <span className="cf-badge__dot" aria-hidden="true" />
+      {children}
+    </span>
+  );
+}
 
-  const variants = {
-    default: 'bg-[#1a1a1a] text-[#f3f3f3] border border-[#212121]',
-    secondary: 'bg-[#101010] text-[#9c9c9c] border border-[#212121]',
-    outline: 'border border-[#212121] text-[#9c9c9c]',
-    success: 'bg-emerald-950/70 text-emerald-300 border border-emerald-800/80',
-    warning: 'bg-amber-950/70 text-amber-300 border border-amber-800/80',
-    destructive: 'bg-red-950/70 text-red-300 border border-red-800/80',
-  };
+export interface TagProps {
+  children: React.ReactNode;
+  /** Makes the tag a filter toggle. */
+  onClick?: () => void;
+  pressed?: boolean;
+}
 
-  return <div className={cn(baseStyles, variants[variant], className)} {...props} />;
+export function Tag({ children, onClick, pressed }: TagProps) {
+  if (onClick) {
+    return (
+      <button type="button" className="cf-tag" aria-pressed={pressed ? 'true' : 'false'} onClick={onClick}>
+        {children}
+      </button>
+    );
+  }
+  return <span className="cf-tag">{children}</span>;
 }

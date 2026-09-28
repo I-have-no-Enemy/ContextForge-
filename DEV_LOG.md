@@ -491,3 +491,33 @@
   - `npm run seed --workspace=backend`: Seeded successfully 100% 📦
   - `npm run test --workspace=backend`: ผ่านฉลุย **54/54 Tests (100% Pass Rate)** ครอบคลุมทั้ง 8 Test Files 🧪
   - `npm run build --workspace=frontend`: ผ่านฉลุย **0 Errors** (Vite build 2.43s) 🎨
+
+---
+
+### 📌 Entry #017: ปรับหน้าเว็บให้ตรงตาม DESIGN.md และ UX.md (Obsidian / Hairline design system)
+- **วันและเวลา**: `2026-09-28 11:00:00 +07:00`
+- **ผู้ดำเนินการ**: Claude Code
+- **การกระทำ (Action)**:
+  - แทนที่ primitives แบบ shadcn ใน `frontend/src/components/ui/` ด้วยชุด component ของ design system: `Button` (primary pill / ghost / quiet), `StatusBadge`, `Tag`, `RiskMeter`, `Tabs`, `SearchField`, `RegistryCard`, `ScanReport`, `ConfigRail`, `EmptyState`, `Dialog` และลบ `card.tsx`
+  - ตัดสิ่งที่ขัดกับ DESIGN.md ออก: สี emerald/amber/red, drop shadow, `rounded-xl`/`rounded-2xl`, `font-semibold`, ไอคอน Sparkles และตัวเลข "100% Verified"
+  - แสดงระดับความเสี่ยงด้วย `RiskMeter` (แท่ง 1–4 + ชื่อระดับ + code) แทนจุดสี เพื่อไม่พึ่งสีอย่างเดียว (WCAG 1.4.1)
+  - Hero แสดง tool ทุกตัวจัดเป็น 4 คอลัมน์ตามระดับความเสี่ยงจากข้อมูลจริง
+  - Config cart ตรวจ `compatible_clients` และปิดปุ่ม Generate จนกว่าจะแก้ความไม่เข้ากัน (UX.md ขั้นที่ 4)
+  - Admin review queue เรียง flagged ก่อน, แสดงผลสแกน LLM01 และบังคับกรอก review note ก่อน reject (UX.md Persona D)
+  - Backend: `GET /api/v1/servers` คืน `tools { name, risk_level }` และ `is_verified` เพื่อให้การ์ดแสดงระดับความเสี่ยงได้
+  - แก้บั๊ก Inspect SKILL.md แสดงค่าว่าง: list endpoint ไม่คืน `skill_content` จึงเพิ่ม `fetchSkill()` ดึงจาก `GET /skills/:id`
+  - ฟอนต์: ใช้ Geist และ IBM Plex Mono แทน Aeonik / Input ที่ไม่มีไฟล์ใน repo
+- **ไฟล์ที่สร้าง/แก้ไข**:
+  - `backend/src/controllers/server.controller.ts`
+  - `backend/src/__tests__/servers.test.ts`
+  - `frontend/index.html`
+  - `frontend/src/index.css`
+  - `frontend/src/App.tsx`
+  - `frontend/src/services/api.ts`
+  - `frontend/src/components/ui/*`
+  - `DEV_LOG.md`
+- **ผลการทดสอบ/ยืนยัน**:
+  - `npx vitest run` (backend): 55/55 tests ผ่าน (เพิ่ม 1 test ตรวจว่า list คืน risk level ของ tool)
+  - `tsc --noEmit` และ `vite build` (frontend): 0 errors
+  - ทดสอบ end-to-end ด้วย Playwright บน build จริงโดย mock `/api/v1` จาก seed data: 16/16 checks ผ่าน (เพิ่มลง cart, คำเตือน client, generate, Esc ปิด dialog, `/` focus search, empty state, admin reject ต้องมี note, mobile 390px ไม่มี horizontal scroll)
+  - ยังไม่ได้ทดสอบกับฐานข้อมูล Supabase จริง
