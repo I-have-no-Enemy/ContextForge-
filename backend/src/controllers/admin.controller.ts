@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma.js';
 import { sendSuccess, sendError } from '../utils/response.js';
+import { getRegistryMetrics } from '../services/metrics.service.js';
+import { syncGithubMetrics } from '../services/githubSync.service.js';
 import {
   listSubmissionsQuerySchema,
   reviewSubmissionSchema,
@@ -8,6 +10,16 @@ import {
 } from '../validators/admin.validator.js';
 
 export class AdminController {
+  /** GET /api/v1/admin/metrics - dashboard numbers. */
+  public static async metrics(_req: Request, res: Response): Promise<void> {
+    sendSuccess(res, await getRegistryMetrics());
+  }
+
+  /** POST /api/v1/admin/sync/github - refresh stars/contributors on demand (spec US5). */
+  public static async syncGithub(_req: Request, res: Response): Promise<void> {
+    sendSuccess(res, await syncGithubMetrics());
+  }
+
   /**
    * GET /api/v1/admin/submissions
    * Lists pending/reviewed submission queues with filters.

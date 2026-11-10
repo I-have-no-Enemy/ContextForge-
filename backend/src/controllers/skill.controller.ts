@@ -3,7 +3,8 @@ import { prisma } from '../config/prisma.js';
 import { SecurityScanner } from '../services/scanner.service.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { ReviewItemType, ReviewStatus } from '@prisma/client';
-import { requeueForReview } from '../services/review.service.js';
+import { requeueForReview, attachLatestReview } from '../services/review.service.js';
+import { parsePage, pageMeta } from '../utils/pagination.js';
 
 export class SkillController {
   public static async list(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -215,6 +216,26 @@ export class SkillController {
     } catch (error) {
       next(error);
     }
+  }
+
+  /** GET /api/v1/skills/me - caller's own skills in every review state (id from JWT). */
+  public static async listMine(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { page, limit, skip } = parsePage(req.query);
+      const where = { submitted_by: req.user!.user_id || req.user!.id!, is_deleted: false };
+      const [total, rows] = await Promise.all([
+        prisma.aiSkill.count({ where }),
+        prisma.aiSkill.findMany({ where, skip, take: limit, orderBy: { updated_at: 'desc' } }),
+      ]);
+      sendSuccess(res, await attachLatestReview(ReviewItemType.skill, rows, 'skill_id'), 200, pageMeta(page, limit, total));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /** POST /api/v1/skills/scan - dry-run of the LLM01 scanner; nothing is stored. */
+  public static scanPreview(req: Request, res: Response): void {
+    sendSuccess(res, SecurityScanner.scanSkillContent(req.body.skill_content));
   }
 
   public static async softDelete(req: Request, res: Response, next: NextFunction): Promise<void> {

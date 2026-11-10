@@ -13,6 +13,9 @@ export const serverRouter = Router();
 serverRouter.param('id', uuidParam);
 serverRouter.param('toolId', uuidParam);
 
+// Owner view (registered before /:id so "me" is not parsed as an id)
+serverRouter.get('/me', requireAuth, ServerController.listMine);
+
 // Public Discovery
 serverRouter.get('/', ServerController.list);
 serverRouter.get('/:id', optionalAuth, ServerController.getById);
@@ -23,3 +26,4 @@ serverRouter.post('/', requireAuth, validateBody(createServerSchema), ServerCont
 serverRouter.patch('/:id', requireAuth, validateBody(updateServerSchema), ServerController.update);
 serverRouter.delete('/:id', requireAuth, ServerController.softDelete);
 serverRouter.post('/:id/tools', requireAuth, validateBody(createToolSchema), ServerController.addTool);
+serverRouter.delete('/:id/tools/:toolId', requireAuth, ServerController.deleteTool);

@@ -19,6 +19,10 @@ export const createSkillSchema = z.object({
 
 export const updateSkillSchema = createSkillSchema.partial();
 
+export const scanSkillSchema = z.object({
+  skill_content: z.string().min(1, 'skill_content is required').max(100_000, 'skill_content is too long'),
+});
+
 export function validateBody(schema: z.ZodSchema) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const result = schema.safeParse(req.body);

@@ -74,6 +74,7 @@ model McpServer {
   tools ToolDefinition[]
 
   @@index([is_verified, is_deleted, downloads_count(sort: Desc)], name: "idx_mcp_servers_verified")
+  @@index([submitted_by], name: "idx_mcp_servers_submitted_by")
   @@map("mcp_servers")
 }
 
@@ -91,6 +92,7 @@ model ToolDefinition {
   server McpServer @relation(fields: [server_id], references: [server_id], onDelete: Cascade)
 
   @@index([server_id], name: "idx_tool_server_id")
+  @@index([input_schema], type: Gin, name: "idx_tool_input_schema")
   @@map("tool_definitions")
 }
 
@@ -114,6 +116,8 @@ model AiSkill {
   user User @relation(fields: [submitted_by], references: [user_id], onDelete: Restrict)
 
   @@index([is_verified, is_deleted, downloads_count(sort: Desc)], name: "idx_ai_skills_verified")
+  @@index([submitted_by], name: "idx_ai_skills_submitted_by")
+  @@index([tags], type: Gin, name: "idx_skills_tags")
   @@map("ai_skills")
 }
 
@@ -130,6 +134,8 @@ model ClientConfig {
   user User? @relation(fields: [user_id], references: [user_id], onDelete: SetNull)
 
   @@index([user_id], name: "idx_client_configs_user_id")
+  @@index([selected_server_ids], type: Gin, name: "idx_client_config_servers")
+  @@index([selected_skill_ids], type: Gin, name: "idx_client_config_skills")
   @@map("client_configs")
 }
 
@@ -147,5 +153,6 @@ model SubmissionReview {
   reviewer User @relation(fields: [reviewer_id], references: [user_id], onDelete: Restrict)
 
   @@index([status, item_type], name: "idx_submission_reviews_pending")
+  @@index([item_type, item_id, reviewed_at(sort: Desc)], name: "idx_submission_reviews_item")
   @@map("submission_reviews")
 }

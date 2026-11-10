@@ -2,7 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/prisma.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { ReviewItemType, ReviewStatus } from '@prisma/client';
-import { requeueForReview } from '../services/review.service.js';
+import { requeueForReview, attachLatestReview } from '../services/review.service.js';
+import { parsePage, pageMeta } from '../utils/pagination.js';
 
 export class ServerController {
   public static async list(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -226,6 +227,52 @@ export class ServerController {
         },
       });
 
+      res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /** GET /api/v1/servers/me - caller's own servers in every review state (id from JWT). */
+  public static async listMine(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { page, limit, skip } = parsePage(req.query);
+      const where = { submitted_by: req.user!.user_id || req.user!.id!, is_deleted: false };
+      const [total, rows] = await Promise.all([
+        prisma.mcpServer.count({ where }),
+        prisma.mcpServer.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { updated_at: 'desc' },
+          include: { tools: { select: { tool_id: true, name: true, risk_level: true } } },
+        }),
+      ]);
+      sendSuccess(res, await attachLatestReview(ReviewItemType.server, rows, 'server_id'), 200, pageMeta(page, limit, total));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /** DELETE /api/v1/servers/:id/tools/:toolId - owner or admin removes one tool definition. */
+  public static async deleteTool(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id, toolId } = req.params;
+      const server = await prisma.mcpServer.findUnique({ where: { server_id: id } });
+      if (!server || server.is_deleted) {
+        sendError(res, 404, 'Parent MCP Server not found.', 'SERVER_NOT_FOUND');
+        return;
+      }
+      if (server.submitted_by !== (req.user!.user_id || req.user!.id) && req.user!.role !== 'admin') {
+        sendError(res, 403, 'Forbidden: You can only remove tools from servers you own.', 'FORBIDDEN');
+        return;
+      }
+      const tool = await prisma.toolDefinition.findFirst({ where: { tool_id: toolId, server_id: id } });
+      if (!tool) {
+        sendError(res, 404, 'Tool not found on this server.', 'TOOL_NOT_FOUND');
+        return;
+      }
+      await prisma.toolDefinition.delete({ where: { tool_id: toolId } });
       res.status(204).end();
     } catch (error) {
       next(error);
