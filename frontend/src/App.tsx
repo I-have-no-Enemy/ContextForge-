@@ -1,27 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import {
-  ShieldCheck,
-  Cpu,
-  Terminal,
-  Sparkles,
-  CheckCircle2,
-  Copy,
-  Download,
-  Search,
-  ExternalLink,
-  UserCheck,
-  AlertTriangle,
-  FileCode,
-  ArrowRight,
-  X,
-  RefreshCw,
-  Layers,
-  Database,
-} from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowUpRight, Check, Copy, Download, RefreshCw } from 'lucide-react';
 import {
   fetchHealth,
   fetchServers,
   fetchSkills,
+  fetchSkill,
+  fetchServer,
   generateConfigSnapshot,
   loginUser,
   fetchAdminSubmissions,
@@ -30,62 +14,131 @@ import {
   AiSkill,
   GeneratedConfig,
   UserProfile,
+  Submission,
 } from './services/api';
 
-// shadcn/ui primitives
 import { Button } from './components/ui/button';
-import { Badge } from './components/ui/badge';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './components/ui/card';
-import { TabsList } from './components/ui/tabs';
+import { StatusBadge, Tag } from './components/ui/badge';
+import { RiskMeter, RISK_ORDER, maxRisk, type RiskLevel } from './components/ui/risk-meter';
+import { Tabs } from './components/ui/tabs';
+import { SearchField } from './components/ui/search-field';
+import { RegistryCard } from './components/ui/registry-card';
+import { ScanReport, parseScanFlags } from './components/ui/scan-report';
+import { ConfigRail, type CartItem, type ClientOption } from './components/ui/config-rail';
+import { EmptyState } from './components/ui/empty-state';
 import { Dialog } from './components/ui/dialog';
 
-export default function App() {
-  // Navigation & Tabs
-  const [activeTab, setActiveTab] = useState<'servers' | 'skills' | 'admin'>('servers');
-  const [health, setHealth] = useState<{ status: string; uptimeSeconds: number } | null>(null);
+type ClientId = 'claude_desktop' | 'cursor' | 'cline' | 'antigravity';
 
-  // Data Collections
+const CLIENTS: ClientOption[] = [
+  { id: 'claude_desktop', label: 'Claude Desktop', file: 'claude_desktop_config.json' },
+  { id: 'cursor', label: 'Cursor', file: '.cursor/mcp.json' },
+  { id: 'cline', label: 'Cline', file: 'cline_mcp_settings.json' },
+  { id: 'antigravity', label: 'Antigravity', file: 'agy.mcp.json' },
+];
+
+const toolLevels = (s: McpServer): RiskLevel[] => (s.tools ?? []).map((t) => t.risk_level);
+
+/** Break long snake_case tool names only at underscores. */
+function breakable(name: string) {
+  const parts = name.split('_');
+  return parts.map((p, i) => (
+    <React.Fragment key={i}>
+      {p}
+      {i < parts.length - 1 && (
+        <>
+          _<wbr />
+        </>
+      )}
+    </React.Fragment>
+  ));
+}
+
+function RiskField({ servers }: { servers: McpServer[] }) {
+  const total = servers.reduce((n, s) => n + (s.tools?.length ?? 0), 0);
+  return (
+    <figure className="risk-field" aria-label="Every listed tool grouped by risk level">
+      <div className="risk-field__h">
+        <span>Tool reach</span>
+        <span>
+          {total} tools · {servers.length} servers
+        </span>
+      </div>
+      <div className="risk-field__cols">
+        {RISK_ORDER.map((level) => {
+          const cells = servers.flatMap((s) =>
+            (s.tools ?? [])
+              .filter((t) => t.risk_level === level)
+              .map((t) => (
+                <div key={`${s.id}-${t.name}`} className="risk-field__tool">
+                  <b>{breakable(t.name)}</b>
+                  <span>{s.name}</span>
+                </div>
+              ))
+          );
+          return (
+            <div key={level} className="risk-field__col">
+              <div className="risk-field__col-h">
+                <RiskMeter level={level} compact />
+              </div>
+              {cells.length ? cells : <span className="risk-field__none">none listed</span>}
+            </div>
+          );
+        })}
+      </div>
+      <figcaption className="risk-field__f">Left to right: what a tool can touch on the host.</figcaption>
+    </figure>
+  );
+}
+
+interface ReviewTarget {
+  submission: Submission;
+  skill?: AiSkill;
+  server?: McpServer;
+  error?: string;
+}
+
+export default function App() {
+  const [tab, setTab] = useState<'servers' | 'skills'>('servers');
+  const [health, setHealth] = useState<{ status: string } | null>(null);
+
   const [servers, setServers] = useState<McpServer[]>([]);
   const [skills, setSkills] = useState<AiSkill[]>([]);
-  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  // Filters & Search
   const [searchQuery, setSearchQuery] = useState('');
   const [clientFilter, setClientFilter] = useState('all');
 
-  // Selection Tray
-  const [selectedServerIds, setSelectedServerIds] = useState<string[]>([]);
-  const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
-  const [targetClient, setTargetClient] = useState<'claude_desktop' | 'cursor' | 'cline' | 'antigravity'>('claude_desktop');
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [targetClient, setTargetClient] = useState<ClientId>('claude_desktop');
 
-  // Generated Output Modal
   const [generatedConfig, setGeneratedConfig] = useState<GeneratedConfig | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Preview Skill Modal
   const [inspectingSkill, setInspectingSkill] = useState<AiSkill | null>(null);
 
-  // Auth State
+  const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null);
+  const [reviewNotes, setReviewNotes] = useState('');
+  const [notesError, setNotesError] = useState<string | null>(null);
+
   const [token, setToken] = useState<string | null>(localStorage.getItem('contextforge_token'));
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     const saved = localStorage.getItem('contextforge_user');
     return saved ? JSON.parse(saved) : null;
   });
+  const isAdmin = Boolean(token && currentUser?.role === 'admin');
 
-  // 1. Initial Load
   useEffect(() => {
     fetchHealth()
       .then((res) => res.success && setHealth(res.data))
-      .catch(() => {});
-
-    loadData();
+      .catch(() => setHealth(null));
   }, []);
 
-  // 2. Load Servers & Skills
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setFetchError(null);
     try {
@@ -96,50 +149,51 @@ export default function App() {
       setServers(serversData);
       setSkills(skillsData);
     } catch (err: any) {
-      console.error('Failed to load data:', err);
       setFetchError(err.message || 'Database connection error.');
     } finally {
       setLoading(false);
     }
-  };
-
-  // Re-fetch on filter change
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      loadData();
-    }, 250);
-    return () => clearTimeout(timer);
   }, [searchQuery, clientFilter]);
 
-  // Load Admin Submissions when entering Admin Tab
+  // Debounced refetch on search and filter changes (also the initial load).
   useEffect(() => {
-    if (activeTab === 'admin' && token && currentUser?.role === 'admin') {
-      fetchAdminSubmissions(token)
-        .then(setSubmissions)
-        .catch((err) => console.error('Failed to fetch admin submissions:', err));
-    }
-  }, [activeTab, token, currentUser]);
+    const timer = setTimeout(loadData, 250);
+    return () => clearTimeout(timer);
+  }, [loadData]);
 
-  // Selection Handlers
-  const toggleServer = (id: string) => {
-    setSelectedServerIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
+  const loadSubmissions = useCallback(() => {
+    if (!isAdmin || !token) return;
+    fetchAdminSubmissions(token)
+      .then(setSubmissions)
+      .catch((err) => setActionError(err.message || 'Failed to load review queue'));
+  }, [isAdmin, token]);
 
-  const toggleSkill = (id: string) => {
-    setSelectedSkillIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
+  useEffect(loadSubmissions, [loadSubmissions]);
 
-  const clearSelection = () => {
-    setSelectedServerIds([]);
-    setSelectedSkillIds([]);
-  };
+  // "/" focuses search (UX.md keyboard-first).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (document.activeElement as HTMLElement | null)?.tagName;
+      if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+        e.preventDefault();
+        document.getElementById('registry-search')?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
-  // Quick Demo Login with exact seeded credentials
+  const inCart = (id: string) => cart.some((c) => c.id === id);
+  const toggle = (item: CartItem) =>
+    setCart((prev) => (prev.some((c) => c.id === item.id) ? prev.filter((c) => c.id !== item.id) : [...prev, item]));
+
+  const clientLabel = CLIENTS.find((c) => c.id === targetClient)?.label ?? targetClient;
+  const warnings = cart
+    .filter((i) => i.clients && !i.clients.includes(targetClient))
+    .map((i) => `${i.name} is not compatible with ${clientLabel}. Remove it or choose another client.`);
+
   const handleDemoLogin = async (role: 'admin' | 'dev') => {
+    setActionError(null);
     try {
       const email = role === 'admin' ? 'admin@contextforge.dev' : 'developer@contextforge.dev';
       const password = role === 'admin' ? 'AdminPassword123!' : 'DevPassword123!';
@@ -149,50 +203,47 @@ export default function App() {
       localStorage.setItem('contextforge_token', res.token);
       localStorage.setItem('contextforge_user', JSON.stringify(res.user));
     } catch (err: any) {
-      alert(err.message || 'Login failed');
+      setActionError(err.message || 'Login failed');
     }
   };
 
   const handleLogout = () => {
     setToken(null);
     setCurrentUser(null);
+    setSubmissions([]);
+    setReviewTarget(null);
     localStorage.removeItem('contextforge_token');
     localStorage.removeItem('contextforge_user');
-    if (activeTab === 'admin') setActiveTab('servers');
   };
 
-  // Generate Config
   const handleGenerate = async () => {
-    if (selectedServerIds.length === 0 && selectedSkillIds.length === 0) return;
+    if (cart.length === 0 || warnings.length > 0) return;
     setIsGenerating(true);
+    setActionError(null);
     try {
       const config = await generateConfigSnapshot(
         targetClient,
-        selectedServerIds,
-        selectedSkillIds,
+        cart.filter((c) => c.kind === 'mcp').map((c) => c.id),
+        cart.filter((c) => c.kind === 'skill').map((c) => c.id),
         token || undefined
       );
       setGeneratedConfig(config);
     } catch (err: any) {
-      alert(err.message || 'Failed to generate config');
+      setActionError(err.message || 'Failed to generate config');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // Copy to Clipboard
   const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
+    navigator.clipboard?.writeText(text).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Download Config File
   const handleDownload = () => {
     if (!generatedConfig) return;
-    const blob = new Blob([JSON.stringify(generatedConfig.generated_json, null, 2)], {
-      type: 'application/json',
-    });
+    const blob = new Blob([JSON.stringify(generatedConfig.generated_json, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -201,511 +252,524 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  // Admin Review Action
-  const handleReview = async (itemType: 'server' | 'skill', itemId: string, status: 'approved' | 'rejected') => {
-    if (!token) return;
+  // The list endpoint omits skill_content, so load the full record on inspect.
+  const handleInspect = async (skill: AiSkill) => {
+    setInspectingSkill(skill);
     try {
-      await reviewSubmission(token, {
-        item_type: itemType,
-        item_id: itemId,
-        status,
-        review_notes: `Reviewed by ${currentUser?.email} from ContextForge Dashboard`,
-      });
-      const updated = await fetchAdminSubmissions(token);
-      setSubmissions(updated);
-      loadData();
+      setInspectingSkill(await fetchSkill(skill.id, token || undefined));
     } catch (err: any) {
-      alert(err.message || 'Review failed');
+      setActionError(err.message || 'Failed to load SKILL.md');
     }
   };
 
-  const totalSelected = selectedServerIds.length + selectedSkillIds.length;
+  const openReview = async (submission: Submission) => {
+    setReviewTarget({ submission });
+    setReviewNotes('');
+    setNotesError(null);
+    try {
+      if (submission.item_type === 'skill') {
+        const skill = await fetchSkill(submission.item_id, token || undefined);
+        setReviewTarget({ submission, skill });
+      } else {
+        const server = await fetchServer(submission.item_id, token || undefined);
+        setReviewTarget({ submission, server });
+      }
+    } catch (err: any) {
+      setReviewTarget({ submission, error: err.message || 'Failed to load item' });
+    }
+  };
+
+  const handleReview = async (status: 'approved' | 'rejected') => {
+    if (!token || !reviewTarget) return;
+    const notes = reviewNotes.trim();
+    if (status === 'rejected' && !notes) {
+      setNotesError('Write the reason for rejection. The developer sees this note.');
+      return;
+    }
+    try {
+      await reviewSubmission(token, {
+        item_type: reviewTarget.submission.item_type,
+        item_id: reviewTarget.submission.item_id,
+        status,
+        review_notes: notes || `Approved by ${currentUser?.email}`,
+      });
+      setReviewTarget(null);
+      loadSubmissions();
+      loadData();
+    } catch (err: any) {
+      setActionError(err.message || 'Review failed');
+    }
+  };
+
+  // Scanner hits first, then pending, then longest waiting (UX.md Persona D).
+  const queue = useMemo(
+    () =>
+      [...submissions].sort(
+        (a, b) =>
+          Number(b.flagged_by_scan) - Number(a.flagged_by_scan) ||
+          Number(b.status === 'pending') - Number(a.status === 'pending') ||
+          new Date(a.reviewed_at).getTime() - new Date(b.reviewed_at).getTime()
+      ),
+    [submissions]
+  );
+  const pendingCount = submissions.filter((s) => s.status === 'pending').length;
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setClientFilter('all');
+  };
+
+  const cards =
+    tab === 'servers'
+      ? servers.map((s) => (
+          <RegistryCard
+            key={s.id}
+            kind="mcp"
+            name={s.name}
+            description={s.description || 'No description provided.'}
+            command={s.install_command}
+            verified={s.is_verified ?? true}
+            risk={maxRisk(toolLevels(s))}
+            stats={[
+              { label: 'stars', value: s.github_stars },
+              { label: 'runs', value: s.downloads_count },
+            ]}
+            selected={inCart(s.id)}
+            onToggle={() => toggle({ id: s.id, kind: 'mcp', name: s.name })}
+          />
+        ))
+      : skills.map((k) => (
+          <RegistryCard
+            key={k.id}
+            kind="skill"
+            name={k.name}
+            description={k.description || 'AI playbook and workflow specification.'}
+            tags={k.compatible_clients}
+            verified={k.is_verified ?? true}
+            flagged={Boolean(k.scan_flags?.prompt_injection_detected)}
+            stats={[{ label: 'exports', value: k.downloads_count }]}
+            selected={inCart(k.id)}
+            onToggle={() => toggle({ id: k.id, kind: 'skill', name: k.name, clients: k.compatible_clients })}
+            onInspect={() => handleInspect(k)}
+          />
+        ));
+
+  const scrollToBrowse = () => document.getElementById('browse')?.scrollIntoView({ behavior: 'smooth' });
 
   return (
-    <div className="min-h-screen bg-[#101010] text-[#f3f3f3] font-sans antialiased flex flex-col justify-between selection:bg-[#212121] selection:text-white">
-      {/* 1. Header (Hyperstudio Canvas Header) */}
-      <header className="border-b border-[#212121] bg-[#080808]/90 sticky top-0 z-40 backdrop-blur px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#ffffff] text-[#101010] flex items-center justify-center font-bold font-mono text-xs shadow-sm">
-            CF
-          </div>
-          <div>
-            <h1 className="text-sm font-semibold tracking-tight text-[#f3f3f3] flex items-center gap-2">
-              ContextForge
-              <Badge variant="secondary">v1.0 shadcn</Badge>
-            </h1>
-            <p className="text-[11px] text-[#9c9c9c] font-mono">Unified MCP Tools & AI Skills Registry</p>
-          </div>
-        </div>
-
-        {/* Navigation Tabs (shadcn/ui TabsList) */}
-        <TabsList
-          items={[
-            {
-              id: 'servers',
-              label: 'MCP Servers',
-              icon: <Terminal className="w-3.5 h-3.5" />,
-              badge: <span className="text-[10px] font-mono text-[#9c9c9c]">({servers.length})</span>,
-            },
-            {
-              id: 'skills',
-              label: 'AI Skills',
-              icon: <Cpu className="w-3.5 h-3.5" />,
-              badge: <span className="text-[10px] font-mono text-[#9c9c9c]">({skills.length})</span>,
-            },
-            ...(currentUser?.role === 'admin'
-              ? [
-                  {
-                    id: 'admin',
-                    label: 'Admin Queue',
-                    icon: <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />,
-                    badge: (
-                      <span className="text-[10px] font-mono text-amber-300">
-                        ({submissions.filter((s) => s.status === 'pending').length})
-                      </span>
-                    ),
-                  },
-                ]
-              : []),
-          ]}
-          activeId={activeTab}
-          onChange={(id: any) => setActiveTab(id)}
-        />
-
-        {/* Right Auth / Telemetry */}
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 text-[11px] font-mono px-3 py-1 rounded-full border border-[#212121] bg-[#080808]">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                health?.status === 'healthy' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-              }`}
-            />
-            <span className="text-[#9c9c9c]">
-              {health?.status === 'healthy' ? 'PostgreSQL Active' : 'Connecting...'}
-            </span>
-          </div>
-
+    <>
+      <div className="pg">
+        <nav className="site-nav" aria-label="Primary">
+          <a className="wordmark" href="#top">
+            ContextForge <i>/ registry</i>
+          </a>
+          <ul className="site-nav__links">
+            <li>
+              <a href="#browse">Browse</a>
+            </li>
+            {isAdmin && (
+              <li>
+                <a href="#review">Review queue ({String(pendingCount).padStart(2, '0')})</a>
+              </li>
+            )}
+            <li>
+              <a href="https://github.com/I-have-no-Enemy/ContextForge-" target="_blank" rel="noreferrer">
+                Source
+              </a>
+            </li>
+          </ul>
+          <StatusBadge tone={health?.status === 'healthy' ? 'live' : 'idle'}>
+            {health?.status === 'healthy' ? 'API · healthy' : 'API · connecting'}
+          </StatusBadge>
           {currentUser ? (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 text-xs bg-[#080808] border border-[#212121] px-3 py-1 rounded-full">
-                <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-[#f3f3f3] font-mono">{currentUser.email.split('@')[0]}</span>
-                <span className="text-[10px] text-amber-300 font-mono uppercase bg-[#1a1a1a] px-1 rounded">
-                  {currentUser.role}
-                </span>
-              </div>
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
-                Logout
+            <>
+              <span className="site-nav__user">
+                <b>{currentUser.email.split('@')[0]}</b> · {currentUser.role}
+              </span>
+              <Button variant="quiet" size="sm" onClick={handleLogout}>
+                Sign out
               </Button>
-            </div>
+            </>
           ) : (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => handleDemoLogin('dev')}>
-                Dev Login
+            <>
+              <Button variant="quiet" size="sm" onClick={() => handleDemoLogin('dev')}>
+                Dev demo
               </Button>
-              <Button variant="default" size="sm" onClick={() => handleDemoLogin('admin')}>
-                Admin Demo
+              <Button variant="ghost" size="sm" onClick={() => handleDemoLogin('admin')}>
+                Admin demo
               </Button>
-            </div>
+            </>
           )}
-        </div>
-      </header>
+        </nav>
 
-      {/* 2. Main Body */}
-      <main className="max-w-6xl mx-auto px-6 py-10 flex-1 w-full pb-32">
-        {/* Banner Section */}
-        <Card className="mb-8 p-6 md:p-8 border-[#212121] bg-[#080808]">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#212121] bg-[#101010] text-[11px] text-[#c1c1c1] mb-4">
-                <Sparkles className="w-3.5 h-3.5 text-[#6f6759]" />
-                <span>Hyperstudio Tokens + shadcn/ui + Supabase Ready</span>
-              </div>
-              <h2 className="text-2xl md:text-4xl font-normal tracking-tight text-[#f3f3f3] mb-3 leading-tight">
-                Unified MCP Tools & AI Skills <br />
-                <span className="text-[#9c9c9c]">Hardened for Production Agents.</span>
-              </h2>
-              <p className="text-xs md:text-sm text-[#9c9c9c] max-w-2xl leading-relaxed">
-                Centralized registry with heuristic prompt injection scanning (OWASP LLM01), multi-client configuration snapshots, and human-in-the-loop review queues.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 shrink-0">
-              <div className="text-center p-4 rounded-xl bg-[#101010] border border-[#212121] min-w-[95px]">
-                <div className="text-2xl font-mono font-bold text-[#f3f3f3]">{servers.length}</div>
-                <div className="text-[10px] text-[#9c9c9c] uppercase tracking-wider font-mono">Servers</div>
-              </div>
-              <div className="text-center p-4 rounded-xl bg-[#101010] border border-[#212121] min-w-[95px]">
-                <div className="text-2xl font-mono font-bold text-[#f3f3f3]">{skills.length}</div>
-                <div className="text-[10px] text-[#9c9c9c] uppercase tracking-wider font-mono">Skills</div>
-              </div>
-              <div className="text-center p-4 rounded-xl bg-[#101010] border border-[#212121] min-w-[95px]">
-                <div className="text-2xl font-mono font-bold text-emerald-400">100%</div>
-                <div className="text-[10px] text-[#9c9c9c] uppercase tracking-wider font-mono">Verified</div>
-              </div>
+        <header className="hero" id="top">
+          <div>
+            <div className="eyebrow">MCP servers + SKILL.md packs</div>
+            <h1>
+              Know what a tool can touch <span>before your agent runs it.</span>
+            </h1>
+            <p className="hero__sub">
+              Every server is rated by the most dangerous tool it exposes. Every skill is scanned for prompt injection.
+              Pick what you trust and export one config for Claude Desktop, Cursor, Cline or Antigravity. No account
+              needed.
+            </p>
+            <div className="cf-row" style={{ gap: 20 }}>
+              <Button variant="primary" trailingIcon={ArrowUpRight} onClick={scrollToBrowse}>
+                Browse registry
+              </Button>
             </div>
           </div>
-        </Card>
+          <RiskField servers={servers} />
+        </header>
+      </div>
 
-        {/* Error Alert if DB was not ready */}
-        {fetchError && (
-          <div className="mb-6 p-4 rounded-xl bg-[#101010] border border-red-900/50 flex items-center justify-between gap-4 text-xs text-red-300">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-              <span>{fetchError}</span>
-            </div>
-            <Button variant="outline" size="sm" onClick={loadData}>
-              <RefreshCw className="w-3 h-3 mr-1.5" /> Retry
+      <section className="section pg" id="browse" aria-labelledby="browse-h">
+        <div className="sec-h">
+          <div>
+            <h2 id="browse-h">Browse the registry</h2>
+            <p>
+              Servers show their highest-risk tool. Skills show the clients they run in. Add either kind to the cart;
+              incompatible picks are caught before you generate.
+            </p>
+          </div>
+          <span className="sec-h__idx">01 / {isAdmin ? '02' : '01'}</span>
+        </div>
+
+        {actionError && (
+          <div className="notice" role="alert">
+            <span>{actionError}</span>
+            <Button variant="quiet" size="sm" onClick={() => setActionError(null)}>
+              Dismiss
             </Button>
           </div>
         )}
 
-        {/* Search & Filter Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-6">
-          <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-[#9c9c9c] absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder={`Search ${activeTab === 'servers' ? 'MCP servers & tools...' : 'AI skills & playbooks...'}`}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#080808] border border-[#212121] rounded-lg pl-10 pr-3 py-2 text-xs text-[#f3f3f3] placeholder-[#9c9c9c] focus:outline-none focus:border-[#474747] transition-all font-mono"
+        <div className="browse">
+          <div>
+            <Tabs
+              label="Catalogue"
+              value={tab}
+              onChange={(id) => setTab(id as 'servers' | 'skills')}
+              items={[
+                { id: 'servers', label: 'MCP servers', count: servers.length },
+                { id: 'skills', label: 'Skills', count: skills.length },
+              ]}
             />
-          </div>
-
-          {activeTab === 'skills' && (
-            <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
-              {['all', 'claude_desktop', 'cursor', 'cline', 'antigravity'].map((client) => (
-                <button
-                  key={client}
-                  onClick={() => setClientFilter(client)}
-                  className={`text-[11px] font-mono px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
-                    clientFilter === client
-                      ? 'bg-[#ffffff] text-[#101010] border-[#ffffff] font-medium'
-                      : 'bg-[#080808] text-[#9c9c9c] border-[#212121] hover:text-[#f3f3f3]'
-                  }`}
-                >
-                  {client === 'all' ? 'All Clients' : client}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Tab 1: MCP Servers Catalog (shadcn/ui Cards) */}
-        {activeTab === 'servers' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {servers.map((server) => {
-              const isSelected = selectedServerIds.includes(server.id);
-              return (
-                <Card
-                  key={server.id}
-                  className={`flex flex-col justify-between ${
-                    isSelected ? 'border-[#ffffff] shadow-lg ring-1 ring-white/10' : ''
-                  }`}
-                >
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          {server.name}
-                          {server.is_verified && (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                          )}
-                        </CardTitle>
-                        <CardDescription className="mt-1.5">
-                          {server.description || 'No description provided.'}
-                        </CardDescription>
-                      </div>
-
-                      <Button
-                        variant={isSelected ? 'default' : 'secondary'}
-                        size="sm"
-                        onClick={() => toggleServer(server.id)}
-                      >
-                        {isSelected ? '✓ Selected' : '+ Select'}
-                      </Button>
-                    </div>
-
-                    {/* Install Command */}
-                    <div className="mt-4 bg-[#101010] p-2.5 rounded-lg border border-[#212121] flex items-center justify-between gap-2 font-mono text-[11px] text-[#c1c1c1]">
-                      <span className="truncate">{server.install_command}</span>
-                      <button
-                        onClick={() => handleCopy(server.install_command)}
-                        className="text-[#9c9c9c] hover:text-white shrink-0 p-1"
-                        title="Copy command"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </CardHeader>
-
-                  <CardFooter className="justify-between text-[11px] text-[#9c9c9c] font-mono">
-                    <div className="flex items-center gap-4">
-                      <span>★ {server.github_stars}</span>
-                      <span>⬇ {server.downloads_count} runs</span>
-                    </div>
-                    {server.repository_url && (
-                      <a
-                        href={server.repository_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="hover:text-white flex items-center gap-1 text-[#9c9c9c]"
-                      >
-                        GitHub <ExternalLink className="w-3 h-3" />
-                      </a>
-                    )}
-                  </CardFooter>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Tab 2: AI Skills Catalog (shadcn/ui Cards) */}
-        {activeTab === 'skills' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {skills.map((skill) => {
-              const isSelected = selectedSkillIds.includes(skill.id);
-              const isFlagged = skill.scan_flags?.prompt_injection_detected;
-
-              return (
-                <Card
-                  key={skill.id}
-                  className={`flex flex-col justify-between ${
-                    isSelected ? 'border-[#ffffff] shadow-lg ring-1 ring-white/10' : ''
-                  }`}
-                >
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          {skill.name}
-                          {isFlagged ? (
-                            <Badge variant="warning">
-                              <AlertTriangle className="w-3 h-3" /> LLM01 Flagged
-                            </Badge>
-                          ) : (
-                            <Badge variant="success">
-                              <ShieldCheck className="w-3 h-3" /> Clean Heuristic
-                            </Badge>
-                          )}
-                        </CardTitle>
-                        <CardDescription className="mt-1.5">
-                          {skill.description || 'AI playbook and workflow specification.'}
-                        </CardDescription>
-                      </div>
-
-                      <Button
-                        variant={isSelected ? 'default' : 'secondary'}
-                        size="sm"
-                        onClick={() => toggleSkill(skill.id)}
-                      >
-                        {isSelected ? '✓ Selected' : '+ Select'}
-                      </Button>
-                    </div>
-
-                    {/* Compatible Clients */}
-                    <div className="mt-4 flex flex-wrap gap-1.5">
-                      {skill.compatible_clients.map((c) => (
-                        <Badge key={c} variant="secondary">
-                          {c}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardHeader>
-
-                  <CardFooter className="justify-between text-[11px] text-[#9c9c9c]">
-                    <button
-                      onClick={() => setInspectingSkill(skill)}
-                      className="text-xs text-[#c1c1c1] hover:text-white flex items-center gap-1 font-mono underline underline-offset-2"
-                    >
-                      <FileCode className="w-3.5 h-3.5" /> Inspect SKILL.md
-                    </button>
-                    <span className="font-mono">⬇ {skill.downloads_count} exports</span>
-                  </CardFooter>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Tab 3: Admin Queue */}
-        {activeTab === 'admin' && (
-          <div className="space-y-4">
-            <div className="p-4 rounded-xl bg-[#080808] border border-amber-900/40 text-xs text-amber-200 flex items-center gap-2 font-mono">
-              <ShieldCheck className="w-4 h-4 text-amber-400" />
-              <span>
-                Administrative Governance Queue — Reviews items flagged by in-process LLM01 heuristics.
-              </span>
+            <div className="browse__tools">
+              <SearchField
+                id="registry-search"
+                label={`Search ${tab === 'servers' ? 'servers' : 'skills'}`}
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder={tab === 'servers' ? 'postgres, search, memory' : 'security, tdd, study'}
+                hint="/"
+              />
+              {tab === 'skills' ? (
+                <div className="filters" role="group" aria-label="Filter by client">
+                  {['all', ...CLIENTS.map((c) => c.id)].map((c) => (
+                    <Tag key={c} pressed={clientFilter === c} onClick={() => setClientFilter(c)}>
+                      {c}
+                    </Tag>
+                  ))}
+                </div>
+              ) : (
+                <span />
+              )}
             </div>
 
-            {submissions.length === 0 ? (
-              <div className="text-center py-16 text-xs font-mono text-[#9c9c9c] bg-[#080808] rounded-xl border border-[#212121]">
-                No pending submissions in queue. All systems green!
+            {fetchError ? (
+              <EmptyState
+                heading="Registry API unreachable"
+                action={
+                  <Button variant="ghost" size="sm" icon={RefreshCw} onClick={loadData}>
+                    Retry
+                  </Button>
+                }
+              >
+                {fetchError}
+              </EmptyState>
+            ) : loading && cards.length === 0 ? (
+              <p className="loading" aria-busy="true">
+                Loading registry…
+              </p>
+            ) : cards.length ? (
+              <div className="browse__grid" aria-busy={loading}>
+                {cards}
               </div>
             ) : (
-              submissions.map((sub) => (
-                <div
-                  key={sub.id}
-                  className="p-5 rounded-xl border border-[#212121] bg-[#080808] flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  <div>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Badge variant="default">{sub.item_type}</Badge>
-                      <span className="text-xs font-mono text-[#9c9c9c]">{sub.item_id}</span>
-                      {sub.flagged_by_scan && (
-                        <Badge variant="warning">
-                          <AlertTriangle className="w-3 h-3" /> LLM01 Flagged
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-[#9c9c9c]">{sub.review_notes || 'Pending moderator review'}</p>
-                  </div>
-
-                  {sub.status === 'pending' ? (
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => handleReview(sub.item_type, sub.item_id, 'approved')}
-                      >
-                        Approve & Verify
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleReview(sub.item_type, sub.item_id, 'rejected')}
-                      >
-                        Reject Submission
-                      </Button>
-                    </div>
-                  ) : (
-                    <Badge variant="outline">Status: {sub.status}</Badge>
-                  )}
-                </div>
-              ))
+              <EmptyState
+                heading="No matching extensions found"
+                action={
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    Clear filters
+                  </Button>
+                }
+              >
+                No verified tools or skills matched your filter criteria.
+              </EmptyState>
             )}
           </div>
-        )}
-      </main>
 
-      {/* 3. Floating Sticky Action Tray */}
-      {totalSelected > 0 && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 w-[92%] max-w-3xl bg-[#080808] border border-[#212121] shadow-2xl rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 z-50 animate-in fade-in slide-in-from-bottom-4">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#ffffff] text-[#101010] flex items-center justify-center font-mono font-bold text-sm">
-              {totalSelected}
-            </div>
+          <div className="browse__rail">
+            <ConfigRail
+              id="config-cart"
+              items={cart}
+              clients={CLIENTS}
+              client={targetClient}
+              onClientChange={(id) => setTargetClient(id as ClientId)}
+              onRemove={(id) => setCart((prev) => prev.filter((c) => c.id !== id))}
+              onGenerate={handleGenerate}
+              warnings={warnings}
+              generating={isGenerating}
+              onBrowse={() => document.getElementById('registry-search')?.focus()}
+            />
+          </div>
+        </div>
+      </section>
+
+      {isAdmin && (
+        <section className="section pg" id="review" aria-labelledby="review-h">
+          <div className="sec-h">
             <div>
-              <div className="text-xs font-semibold text-[#f3f3f3]">
-                {selectedServerIds.length} Servers, {selectedSkillIds.length} Skills Selected
-              </div>
-              <div className="text-[11px] text-[#9c9c9c] font-mono">Ready to compile snapshot</div>
+              <h2 id="review-h">Review queue</h2>
+              <p>Scanner hits jump the queue. Open an item to see its findings; rejecting requires a note.</p>
             </div>
+            <span className="sec-h__idx">02 / 02</span>
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-            <select
-              value={targetClient}
-              onChange={(e: any) => setTargetClient(e.target.value)}
-              className="bg-[#101010] border border-[#212121] text-xs text-[#f3f3f3] px-3 py-2 rounded-lg font-mono focus:outline-none"
-            >
-              <option value="claude_desktop">Claude Desktop (claude_desktop_config.json)</option>
-              <option value="cursor">Cursor (.cursor/mcp.json)</option>
-              <option value="cline">Cline (cline_mcp_settings.json)</option>
-              <option value="antigravity">Antigravity (agy.mcp.json)</option>
-            </select>
+          {queue.length === 0 ? (
+            <EmptyState heading="Review queue cleared" tone="ok">
+              All pending submissions have been triaged. No security items pending.
+            </EmptyState>
+          ) : (
+            <div className="review">
+              <ul className="queue">
+                {queue.map((s) => (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      className="queue__row"
+                      aria-current={reviewTarget?.submission.id === s.id ? 'true' : undefined}
+                      onClick={() => openReview(s)}
+                    >
+                      <Tag>{s.item_type}</Tag>
+                      <span className="queue__id">{s.item_id}</span>
+                      {s.flagged_by_scan && <StatusBadge tone="alert">LLM01</StatusBadge>}
+                      <StatusBadge tone={s.status === 'pending' ? 'idle' : s.status === 'approved' ? 'live' : 'alert'}>
+                        {s.status}
+                      </StatusBadge>
+                    </button>
+                  </li>
+                ))}
+              </ul>
 
-            <Button variant="default" size="default" onClick={handleGenerate} disabled={isGenerating}>
-              {isGenerating ? 'Generating...' : '1-Click Export'} <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-            </Button>
+              {reviewTarget ? (
+                <ReviewPanel
+                  target={reviewTarget}
+                  notes={reviewNotes}
+                  notesError={notesError}
+                  onNotesChange={(v) => {
+                    setReviewNotes(v);
+                    setNotesError(null);
+                  }}
+                  onReview={handleReview}
+                />
+              ) : (
+                <EmptyState heading="Select a submission">
+                  Pick an item on the left to see its scan findings and source before deciding.
+                </EmptyState>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
-            <Button variant="ghost" size="icon" onClick={clearSelection} title="Clear selection">
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
+      <footer className="site-foot pg">
+        <span>ContextForge · 06016418 Server-Side Web Development, KMITL IT</span>
+        <span>Risk levels: read_only · network · filesystem · destructive</span>
+      </footer>
+
+      {cart.length > 0 && (
+        <div className="cart-bar">
+          <span aria-live="polite">
+            {cart.length} in config · {clientLabel}
+          </span>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => document.getElementById('config-cart')?.scrollIntoView({ behavior: 'smooth' })}
+          >
+            Review &amp; generate
+          </Button>
         </div>
       )}
 
-      {/* 4. Modal: Generated Config Output (shadcn/ui Dialog) */}
       <Dialog
         open={Boolean(generatedConfig)}
         onOpenChange={(open) => !open && setGeneratedConfig(null)}
         title={
           <>
-            Generated Client Configuration
-            <Badge variant="secondary">{generatedConfig?.client_type}</Badge>
+            Config generated <Tag>{generatedConfig?.client_type}</Tag>
           </>
         }
-        description={`Snapshot ID: ${generatedConfig?.id}`}
+        description={`Snapshot ${generatedConfig?.id} · ${CLIENTS.find((c) => c.id === generatedConfig?.client_type)?.file ?? ''}`}
         footer={
           <>
-            <span className="text-xs text-[#9c9c9c] font-mono">Downloads incremented on registry</span>
-            <div className="flex items-center gap-2">
+            <span className="cf-mono cf-muted" style={{ fontSize: 13 }}>
+              Paste into your client's config file
+            </span>
+            <div className="cf-row">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
+                icon={copied ? Check : Copy}
                 onClick={() => handleCopy(JSON.stringify(generatedConfig?.generated_json, null, 2))}
               >
-                {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mr-1.5" /> : <Copy className="w-3.5 h-3.5 mr-1.5" />}
-                {copied ? 'Copied!' : 'Copy JSON'}
+                {copied ? 'Copied' : 'Copy JSON'}
               </Button>
-              <Button variant="default" size="sm" onClick={handleDownload}>
-                <Download className="w-3.5 h-3.5 mr-1.5" /> Download File
+              <Button variant="primary" size="sm" icon={Download} onClick={handleDownload}>
+                Download
               </Button>
             </div>
           </>
         }
       >
-        <pre className="bg-[#101010] p-4 rounded-xl border border-[#212121] text-xs font-mono text-emerald-400 overflow-x-auto leading-relaxed">
-          {JSON.stringify(generatedConfig?.generated_json, null, 2)}
-        </pre>
+        <pre className="cf-code">{JSON.stringify(generatedConfig?.generated_json, null, 2)}</pre>
       </Dialog>
 
-      {/* 5. Modal: SKILL.md Inspector (shadcn/ui Dialog) */}
       <Dialog
         open={Boolean(inspectingSkill)}
         onOpenChange={(open) => !open && setInspectingSkill(null)}
         title={
           <>
-            {inspectingSkill?.name}
-            <Badge variant="secondary">SKILL.md</Badge>
+            {inspectingSkill?.name} <Tag>SKILL.md</Tag>
           </>
         }
         description={inspectingSkill?.description}
         footer={
-          <div className="w-full flex justify-end">
-            <Button variant="outline" size="sm" onClick={() => setInspectingSkill(null)}>
+          <>
+            <span className="cf-mono cf-muted" style={{ fontSize: 13 }}>
+              {inspectingSkill?.compatible_clients.join(' · ')}
+            </span>
+            <Button variant="ghost" size="sm" onClick={() => setInspectingSkill(null)}>
               Close
             </Button>
-          </div>
+          </>
         }
       >
-        <pre className="bg-[#101010] p-4 rounded-xl border border-[#212121] text-xs font-mono text-[#f3f3f3] overflow-x-auto whitespace-pre-wrap leading-relaxed">
-          {inspectingSkill?.skill_content}
-        </pre>
+        <pre className="cf-code">{inspectingSkill?.skill_content ?? 'Loading SKILL.md…'}</pre>
       </Dialog>
+    </>
+  );
+}
 
-      {/* 6. Footer (Hyperstudio Invariant) */}
-      <footer className="border-t border-[#212121] px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-[#9c9c9c] font-mono bg-[#080808]">
-        <div>
-          ContextForge Platform — Course 06016418 Server-Side Web Development (KMITL IT)
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1.5">
-            <Database className="w-3.5 h-3.5 text-emerald-400" /> PostgreSQL & Supabase Ready
-          </span>
-          <a
-            href="https://github.com/I-have-no-Enemy/ContextForge-"
-            target="_blank"
-            rel="noreferrer"
-            className="text-[#f3f3f3] hover:underline underline-offset-2"
-          >
-            Source Code
-          </a>
-        </div>
-      </footer>
+interface ReviewPanelProps {
+  target: ReviewTarget;
+  notes: string;
+  notesError: string | null;
+  onNotesChange: (v: string) => void;
+  onReview: (status: 'approved' | 'rejected') => void;
+}
+
+function ReviewPanel({ target, notes, notesError, onNotesChange, onReview }: ReviewPanelProps) {
+  const { submission, skill, server, error } = target;
+  const pending = submission.status === 'pending';
+  const scan = skill?.scan_flags;
+
+  return (
+    <div className="panel" aria-live="polite">
+      {skill && (
+        <ScanReport
+          name={skill.name}
+          score={scan?.riskScore ?? 0}
+          flags={parseScanFlags(scan?.flags)}
+          excerpt={skill.skill_content}
+        />
+      )}
+      <dl>
+        <dt>Type</dt>
+        <dd>{submission.item_type === 'skill' ? 'Skill' : 'MCP server'}</dd>
+        <dt>Item</dt>
+        <dd className="cf-mono">{skill?.name ?? server?.name ?? submission.item_id}</dd>
+        {skill && (
+          <>
+            <dt>Clients</dt>
+            <dd>
+              <div className="cf-row" style={{ gap: 6 }}>
+                {skill.compatible_clients.map((c) => (
+                  <Tag key={c}>{c}</Tag>
+                ))}
+              </div>
+            </dd>
+          </>
+        )}
+        {server?.tools?.map((t) => (
+          <React.Fragment key={t.name}>
+            <dt>Tool</dt>
+            <dd className="cf-row" style={{ justifyContent: 'space-between' }}>
+              <span className="cf-mono">{t.name}</span>
+              <RiskMeter level={t.risk_level} />
+            </dd>
+          </React.Fragment>
+        ))}
+        <dt>Status</dt>
+        <dd>
+          <StatusBadge tone={pending ? 'idle' : submission.status === 'approved' ? 'live' : 'alert'}>
+            {submission.status}
+          </StatusBadge>
+        </dd>
+        {submission.review_notes && (
+          <>
+            <dt>Notes</dt>
+            <dd>{submission.review_notes}</dd>
+          </>
+        )}
+      </dl>
+      {error && <p className="panel__note panel__err">{error}</p>}
+      {!skill && !server && !error && <p className="panel__note loading">Loading item…</p>}
+      {pending && (
+        <>
+          <div className="panel__note">
+            <label className="cf-field__label" htmlFor="review-notes">
+              Review notes (required to reject)
+            </label>
+            <textarea
+              id="review-notes"
+              value={notes}
+              onChange={(e) => onNotesChange(e.target.value)}
+              aria-invalid={Boolean(notesError)}
+              aria-describedby={notesError ? 'review-notes-error' : undefined}
+              placeholder="What must change before this can be verified"
+            />
+            {notesError && (
+              <p id="review-notes-error" className="panel__err">
+                {notesError}
+              </p>
+            )}
+          </div>
+          <div className="panel__acts">
+            {submission.flagged_by_scan ? (
+              <>
+                <Button variant="primary" onClick={() => onReview('rejected')}>
+                  Reject with note
+                </Button>
+                <Button variant="ghost" onClick={() => onReview('approved')}>
+                  Approve &amp; verify
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="primary" onClick={() => onReview('approved')}>
+                  Approve &amp; verify
+                </Button>
+                <Button variant="ghost" onClick={() => onReview('rejected')}>
+                  Reject with note
+                </Button>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

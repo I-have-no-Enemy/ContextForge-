@@ -1,44 +1,45 @@
 import * as React from 'react';
-import { cn } from '../../lib/utils';
 
 export interface TabItem {
   id: string;
   label: React.ReactNode;
-  icon?: React.ReactNode;
-  badge?: React.ReactNode;
+  count?: number;
 }
 
-export interface TabsListProps {
+export interface TabsProps {
   items: TabItem[];
-  activeId: string;
+  value: string;
   onChange: (id: string) => void;
-  className?: string;
+  label?: string;
 }
 
-export function TabsList({ items, activeId, onChange, className }: TabsListProps) {
+export function Tabs({ items, value, onChange, label = 'Sections' }: TabsProps) {
+  const onKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, idx: number) => {
+    const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    if (!d) return;
+    const next = (idx + d + items.length) % items.length;
+    onChange(items[next].id);
+    const tabs = e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    tabs?.[next].focus();
+  };
+
   return (
-    <div
-      className={cn(
-        'inline-flex items-center gap-1 rounded-xl bg-[#080808] p-1 border border-[#212121]',
-        className
-      )}
-    >
-      {items.map((item) => {
-        const isActive = item.id === activeId;
+    <div className="cf-tabs" role="tablist" aria-label={label}>
+      {items.map((it, idx) => {
+        const on = it.id === value;
         return (
           <button
-            key={item.id}
-            onClick={() => onChange(item.id)}
-            className={cn(
-              'inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all cursor-pointer',
-              isActive
-                ? 'bg-[#212121] text-[#f3f3f3] shadow-sm font-semibold'
-                : 'text-[#9c9c9c] hover:text-[#f3f3f3] hover:bg-[#121212]'
-            )}
+            key={it.id}
+            type="button"
+            role="tab"
+            className="cf-tab"
+            aria-selected={on}
+            tabIndex={on ? 0 : -1}
+            onClick={() => onChange(it.id)}
+            onKeyDown={(e) => onKeyDown(e, idx)}
           >
-            {item.icon}
-            <span>{item.label}</span>
-            {item.badge}
+            {it.label}
+            {it.count != null && <span className="cf-tab__count">{String(it.count).padStart(2, '0')}</span>}
           </button>
         );
       })}

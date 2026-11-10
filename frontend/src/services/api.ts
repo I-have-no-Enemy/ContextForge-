@@ -9,6 +9,7 @@ export interface McpServer {
   downloads_count: number;
   github_stars: number;
   is_verified: boolean;
+  tools?: { name: string; risk_level: 'read_only' | 'network' | 'filesystem' | 'destructive' }[];
   _count?: { tools: number };
 }
 
@@ -24,8 +25,20 @@ export interface AiSkill {
   downloads_count: number;
   scan_flags?: {
     prompt_injection_detected?: boolean;
-    suspicious_patterns?: string[];
+    flags?: string[];
+    riskScore?: number;
   };
+}
+
+export interface Submission {
+  review_id: string;
+  id: string;
+  item_type: 'server' | 'skill';
+  item_id: string;
+  status: 'pending' | 'approved' | 'rejected';
+  flagged_by_scan: boolean;
+  review_notes: string | null;
+  reviewed_at: string;
 }
 
 export interface GeneratedConfig {
@@ -71,6 +84,29 @@ export async function fetchSkills(search?: string, client?: string): Promise<AiS
   const res = await fetch(`${API_BASE}/skills?${params.toString()}`);
   const data = await res.json();
   return data.success ? data.data : [];
+}
+
+/** Full skill record, including skill_content and scan_flags (the list endpoint omits both). */
+export async function fetchSkill(id: string, token?: string): Promise<AiSkill> {
+  const res = await fetch(`${API_BASE}/skills/${encodeURIComponent(id)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  const data = await res.json();
+  if (!data.success) {
+    throw new Error(data.error?.message || 'Failed to load skill');
+  }
+  return data.data;
+}
+
+export async function fetchServer(id: string, token?: string): Promise<McpServer> {
+  const res = await fetch(`${API_BASE}/servers/${encodeURIComponent(id)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  const data = await res.json();
+  if (!data.success) {
+    throw new Error(data.error?.message || 'Failed to load server');
+  }
+  return data.data;
 }
 
 export async function generateConfigSnapshot(
@@ -127,7 +163,7 @@ export async function fetchMe(token: string): Promise<UserProfile> {
   return data.data;
 }
 
-export async function fetchAdminSubmissions(token: string) {
+export async function fetchAdminSubmissions(token: string): Promise<Submission[]> {
   const res = await fetch(`${API_BASE}/admin/submissions`, {
     headers: { Authorization: `Bearer ${token}` },
   });

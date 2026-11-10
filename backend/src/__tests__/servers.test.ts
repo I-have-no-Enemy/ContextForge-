@@ -58,6 +58,16 @@ describe('MCP Servers & Tools API Endpoints (/api/v1/servers/*)', () => {
         totalPages: 1,
       });
     });
+
+    it('should include each tool risk level so clients can rate servers', async () => {
+      vi.spyOn(prisma.mcpServer, 'count').mockResolvedValue(0);
+      const findMany = vi.spyOn(prisma.mcpServer, 'findMany').mockResolvedValue([]);
+
+      await request(app).get('/api/v1/servers');
+
+      const args = findMany.mock.calls[0][0] as any;
+      expect(args.select.tools).toEqual({ select: { name: true, risk_level: true } });
+    });
   });
 
   describe('GET /api/v1/servers/:id', () => {
