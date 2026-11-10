@@ -19,6 +19,7 @@ const userB = {
   role: 'developer' as const,
 };
 
+const SRV_A = 'aaaaaaaa-0000-4000-8000-000000000001';
 const tokenA = jwt.sign(userA, JWT_SECRET, { expiresIn: '1h' });
 const tokenB = jwt.sign(userB, JWT_SECRET, { expiresIn: '1h' });
 
@@ -73,7 +74,7 @@ describe('MCP Servers & Tools API Endpoints (/api/v1/servers/*)', () => {
   describe('GET /api/v1/servers/:id', () => {
     it('should return 200 for existing verified server', async () => {
       vi.spyOn(prisma.mcpServer, 'findUnique').mockResolvedValue({
-        id: 'srv-1',
+        id: 'aaaaaaaa-0000-4000-8000-000000000003',
         name: 'test-server',
         is_verified: true,
         is_deleted: false,
@@ -82,7 +83,7 @@ describe('MCP Servers & Tools API Endpoints (/api/v1/servers/*)', () => {
         user: { email: userA.email },
       } as any);
 
-      const response = await request(app).get('/api/v1/servers/srv-1');
+      const response = await request(app).get('/api/v1/servers/aaaaaaaa-0000-4000-8000-000000000003');
 
       expect(response.status).toBe(200);
       expect(response.body.data.name).toBe('test-server');
@@ -90,11 +91,11 @@ describe('MCP Servers & Tools API Endpoints (/api/v1/servers/*)', () => {
 
     it('should return 404 for deleted or non-existent server', async () => {
       vi.spyOn(prisma.mcpServer, 'findUnique').mockResolvedValue({
-        id: 'srv-deleted',
+        id: 'aaaaaaaa-0000-4000-8000-000000000002',
         is_deleted: true,
       } as any);
 
-      const response = await request(app).get('/api/v1/servers/srv-deleted');
+      const response = await request(app).get('/api/v1/servers/aaaaaaaa-0000-4000-8000-000000000002');
 
       expect(response.status).toBe(404);
       expect(response.body.error.code).toBe('SERVER_NOT_FOUND');
@@ -150,13 +151,13 @@ describe('MCP Servers & Tools API Endpoints (/api/v1/servers/*)', () => {
   describe('PATCH /api/v1/servers/:id (OWASP A01: Broken Access Control / IDOR Prevention)', () => {
     it('should return 403 Forbidden when User B tries to update User A server', async () => {
       vi.spyOn(prisma.mcpServer, 'findUnique').mockResolvedValue({
-        id: 'srv-user-a',
+        id: 'aaaaaaaa-0000-4000-8000-000000000001',
         submitted_by: userA.id,
         is_deleted: false,
       } as any);
 
       const response = await request(app)
-        .patch('/api/v1/servers/srv-user-a')
+        .patch('/api/v1/servers/aaaaaaaa-0000-4000-8000-000000000001')
         .set('Authorization', `Bearer ${tokenB}`)
         .send({ description: 'Hacked description' });
 
@@ -166,60 +167,115 @@ describe('MCP Servers & Tools API Endpoints (/api/v1/servers/*)', () => {
 
     it('should allow owner User A to update server metadata (HTTP 200)', async () => {
       vi.spyOn(prisma.mcpServer, 'findUnique').mockResolvedValue({
-        id: 'srv-user-a',
+        id: 'aaaaaaaa-0000-4000-8000-000000000001',
         submitted_by: userA.id,
         is_deleted: false,
       } as any);
 
-      vi.spyOn(prisma.mcpServer, 'update').mockResolvedValue({
-        id: 'srv-user-a',
-        description: 'Updated description',
-      } as any);
+      const tx = {
+        mcpServer: { update: vi.fn(async ({ data }: any) => ({ server_id: SRV_A, ...data })) },
+        submissionReview: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue({}) },
+      };
+      vi.spyOn(prisma, '$transaction').mockImplementation(async (cb: any) => cb(tx));
 
       const response = await request(app)
-        .patch('/api/v1/servers/srv-user-a')
+        .patch(`/api/v1/servers/${SRV_A}`)
         .set('Authorization', `Bearer ${tokenA}`)
         .send({ description: 'Updated description' });
 
       expect(response.status).toBe(200);
       expect(response.body.data.description).toBe('Updated description');
     });
+
+    it('AC2: owner edit of a verified server resets verification and re-queues review', async () => {
+      vi.spyOn(prisma.mcpServer, 'findUnique').mockResolvedValue({
+        server_id: SRV_A,
+        submitted_by: userA.id,
+        is_verified: true,
+        is_deleted: false,
+      } as any);
+      const tx = {
+        mcpServer: { update: vi.fn(async ({ data }: any) => ({ server_id: SRV_A, ...data })) },
+        submissionReview: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue({}) },
+      };
+      vi.spyOn(prisma, '$transaction').mockImplementation(async (cb: any) => cb(tx));
+
+      const response = await request(app)
+        .patch(`/api/v1/servers/${SRV_A}`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ install_command: 'npx -y evil-package' });
+
+      expect(response.status).toBe(200);
+      expect(tx.mcpServer.update.mock.calls[0][0].data.is_verified).toBe(false);
+      expect(tx.submissionReview.create).toHaveBeenCalledTimes(1);
+      expect(tx.submissionReview.create.mock.calls[0][0].data).toMatchObject({
+        item_type: 'server',
+        item_id: SRV_A,
+        status: 'pending',
+      });
+    });
+
+    it('AC11: rejects a malformed server id with HTTP 400 instead of a DB error', async () => {
+      const response = await request(app).get('/api/v1/servers/not-a-uuid');
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('INVALID_ID');
+    });
   });
 
   describe('DELETE /api/v1/servers/:id (Soft Delete)', () => {
-    it('should perform soft delete when owner requests deletion (HTTP 200)', async () => {
+    it('AC6: soft deletes when owner requests deletion (HTTP 204, empty body)', async () => {
       vi.spyOn(prisma.mcpServer, 'findUnique').mockResolvedValue({
-        id: 'srv-user-a',
+        id: 'aaaaaaaa-0000-4000-8000-000000000001',
         submitted_by: userA.id,
         is_deleted: false,
       } as any);
 
       vi.spyOn(prisma.mcpServer, 'update').mockResolvedValue({
-        id: 'srv-user-a',
+        id: 'aaaaaaaa-0000-4000-8000-000000000001',
         is_deleted: true,
       } as any);
 
       const response = await request(app)
-        .delete('/api/v1/servers/srv-user-a')
+        .delete('/api/v1/servers/aaaaaaaa-0000-4000-8000-000000000001')
         .set('Authorization', `Bearer ${tokenA}`);
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
+      expect(response.status).toBe(204);
+      expect(response.text).toBe('');
     });
   });
 
   describe('Tools Endpoints (/api/v1/servers/:id/tools)', () => {
+    it('AC3: hides tools of an unverified server from the public (HTTP 404)', async () => {
+      vi.spyOn(prisma.mcpServer, 'findUnique').mockResolvedValue({
+        server_id: SRV_A,
+        submitted_by: userA.id,
+        is_verified: false,
+        is_deleted: false,
+      } as any);
+      const findMany = vi.spyOn(prisma.toolDefinition, 'findMany');
+
+      const response = await request(app).get(`/api/v1/servers/${SRV_A}/tools`);
+
+      expect(response.status).toBe(404);
+      expect(findMany).not.toHaveBeenCalled();
+    });
+
     it('should return tool definitions for server (HTTP 200)', async () => {
+      vi.spyOn(prisma.mcpServer, 'findUnique').mockResolvedValue({
+        server_id: 'aaaaaaaa-0000-4000-8000-000000000003',
+        is_verified: true,
+        is_deleted: false,
+      } as any);
       vi.spyOn(prisma.toolDefinition, 'findMany').mockResolvedValue([
         {
           id: 'tool-1',
-          server_id: 'srv-1',
+          server_id: 'aaaaaaaa-0000-4000-8000-000000000003',
           name: 'query_db',
           risk_level: 'read_only',
         } as any,
       ]);
 
-      const response = await request(app).get('/api/v1/servers/srv-1/tools');
+      const response = await request(app).get('/api/v1/servers/aaaaaaaa-0000-4000-8000-000000000003/tools');
 
       expect(response.status).toBe(200);
       expect(response.body.data.length).toBe(1);
@@ -228,20 +284,20 @@ describe('MCP Servers & Tools API Endpoints (/api/v1/servers/*)', () => {
 
     it('should allow owner to add a new tool (HTTP 201)', async () => {
       vi.spyOn(prisma.mcpServer, 'findUnique').mockResolvedValue({
-        id: 'srv-user-a',
+        id: 'aaaaaaaa-0000-4000-8000-000000000001',
         submitted_by: userA.id,
         is_deleted: false,
       } as any);
 
       vi.spyOn(prisma.toolDefinition, 'create').mockResolvedValue({
         id: 'tool-new',
-        server_id: 'srv-user-a',
+        server_id: 'aaaaaaaa-0000-4000-8000-000000000001',
         name: 'write_table',
         risk_level: 'destructive',
       } as any);
 
       const response = await request(app)
-        .post('/api/v1/servers/srv-user-a/tools')
+        .post('/api/v1/servers/aaaaaaaa-0000-4000-8000-000000000001/tools')
         .set('Authorization', `Bearer ${tokenA}`)
         .send({
           name: 'write_table',

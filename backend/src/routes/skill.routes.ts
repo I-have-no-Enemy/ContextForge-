@@ -2,8 +2,10 @@ import { Router } from 'express';
 import { SkillController } from '../controllers/skill.controller.js';
 import { createSkillSchema, updateSkillSchema, validateBody } from '../validators/skill.validator.js';
 import { requireAuth, optionalAuth } from '../middlewares/auth.middleware.js';
+import { uuidParam } from '../middlewares/params.middleware.js';
 
 export const skillRouter = Router();
+skillRouter.param('id', uuidParam);
 
 // Public Discovery
 skillRouter.get('/', SkillController.list);

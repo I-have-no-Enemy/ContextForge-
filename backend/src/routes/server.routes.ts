@@ -7,13 +7,16 @@ import {
   validateBody,
 } from '../validators/server.validator.js';
 import { requireAuth, optionalAuth } from '../middlewares/auth.middleware.js';
+import { uuidParam } from '../middlewares/params.middleware.js';
 
 export const serverRouter = Router();
+serverRouter.param('id', uuidParam);
+serverRouter.param('toolId', uuidParam);
 
 // Public Discovery
 serverRouter.get('/', ServerController.list);
 serverRouter.get('/:id', optionalAuth, ServerController.getById);
-serverRouter.get('/:id/tools', ServerController.listTools);
+serverRouter.get('/:id/tools', optionalAuth, ServerController.listTools);
 
 // Authenticated Operations
 serverRouter.post('/', requireAuth, validateBody(createServerSchema), ServerController.create);

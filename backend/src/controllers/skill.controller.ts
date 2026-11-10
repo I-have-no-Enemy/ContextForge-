@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma.js';
 import { SecurityScanner } from '../services/scanner.service.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { ReviewItemType, ReviewStatus } from '@prisma/client';
+import { requeueForReview } from '../services/review.service.js';
 
 export class SkillController {
   public static async list(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -179,15 +180,35 @@ export class SkillController {
 
       const updateData: any = { ...req.body };
 
-      // Re-scan if skill_content changed
-      if (updateData.skill_content) {
-        const scanResult = SecurityScanner.scanSkillContent(updateData.skill_content);
-        updateData.scan_flags = scanResult;
-      }
+      // Re-scan if skill_content changed (LLM01)
+      const scanResult = updateData.skill_content
+        ? SecurityScanner.scanSkillContent(updateData.skill_content)
+        : null;
+      if (scanResult) updateData.scan_flags = scanResult;
 
-      const updated = await prisma.aiSkill.update({
-        where: { skill_id: id },
-        data: updateData,
+      // Any owner edit goes back to review so approved content cannot be swapped afterwards (OWASP A04).
+      const isOwnerEdit = req.user.role !== 'admin';
+      if (isOwnerEdit) updateData.is_verified = false;
+
+      const updated = await prisma.$transaction(async (tx) => {
+        const row = await tx.aiSkill.update({
+          where: { skill_id: id },
+          data: updateData,
+        });
+        if (isOwnerEdit) {
+          const flagged = scanResult?.prompt_injection_detected ?? false;
+          await requeueForReview(
+            tx,
+            ReviewItemType.skill,
+            id,
+            currentUserId!,
+            flagged,
+            flagged
+              ? `SECURITY SCAN ALERT after owner edit: ${scanResult!.flags.join('; ')}`
+              : 'Owner edited this skill. Re-review required before it is listed again.'
+          );
+        }
+        return row;
       });
 
       sendSuccess(res, { ...updated, id: updated.skill_id });
@@ -226,7 +247,7 @@ export class SkillController {
         },
       });
 
-      sendSuccess(res, { message: 'AI Skill deleted successfully (soft delete).' });
+      res.status(204).end();
     } catch (error) {
       next(error);
     }

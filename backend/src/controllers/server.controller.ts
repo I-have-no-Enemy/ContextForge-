@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/prisma.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { ReviewItemType, ReviewStatus } from '@prisma/client';
+import { requeueForReview } from '../services/review.service.js';
 
 export class ServerController {
   public static async list(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -168,9 +169,25 @@ export class ServerController {
         return;
       }
 
-      const updated = await prisma.mcpServer.update({
-        where: { server_id: id },
-        data: req.body,
+      // Any owner edit sends the server back to review so an approved listing cannot be
+      // swapped for a malicious install_command afterwards (bait-and-switch, OWASP A04).
+      const isOwnerEdit = req.user.role !== 'admin';
+      const updated = await prisma.$transaction(async (tx) => {
+        const row = await tx.mcpServer.update({
+          where: { server_id: id },
+          data: isOwnerEdit ? { ...req.body, is_verified: false } : req.body,
+        });
+        if (isOwnerEdit) {
+          await requeueForReview(
+            tx,
+            ReviewItemType.server,
+            id,
+            currentUserId!,
+            false,
+            'Owner edited this server. Re-review required before it is listed again.'
+          );
+        }
+        return row;
       });
 
       sendSuccess(res, { ...updated, id: updated.server_id });
@@ -209,7 +226,7 @@ export class ServerController {
         },
       });
 
-      sendSuccess(res, { message: 'Server deleted successfully (soft delete).' });
+      res.status(204).end();
     } catch (error) {
       next(error);
     }
@@ -218,6 +235,15 @@ export class ServerController {
   public static async listTools(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
+      const server = await prisma.mcpServer.findUnique({ where: { server_id: id } });
+      const canSeeUnverified =
+        !!req.user && ((req.user.user_id || req.user.id) === server?.submitted_by || req.user.role === 'admin');
+
+      if (!server || server.is_deleted || (!server.is_verified && !canSeeUnverified)) {
+        sendError(res, 404, 'MCP Server not found.', 'SERVER_NOT_FOUND');
+        return;
+      }
+
       const tools = await prisma.toolDefinition.findMany({
         where: { server_id: id },
         orderBy: { name: 'asc' },
