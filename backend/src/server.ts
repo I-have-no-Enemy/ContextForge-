@@ -1,8 +1,9 @@
-import dotenv from 'dotenv';
-dotenv.config();
-
+import './loadEnv.js';
 import { createApp } from './app.js';
 import { prisma } from './config/prisma.js';
+import { getJwtSecret } from './config/env.js';
+
+getJwtSecret(); // fail fast on a missing/weak secret in production
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
 const app = createApp();

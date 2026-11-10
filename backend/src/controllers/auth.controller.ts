@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../config/prisma.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'contextforge_fallback_dev_secret_key_2026';
+import { getJwtSecret, BCRYPT_ROUNDS } from '../config/env.js';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 export class AuthController {
@@ -23,7 +23,7 @@ export class AuthController {
       }
 
       // 2. Hash password
-      const password_hash = await bcrypt.hash(password, 10);
+      const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
       // 3. Create user record
       const user = await prisma.user.create({
@@ -77,7 +77,7 @@ export class AuthController {
           email: user.email,
           role: user.role,
         },
-        JWT_SECRET,
+        getJwtSecret(),
         { expiresIn: (JWT_EXPIRES_IN || '24h') as any }
       );
 

@@ -17,7 +17,7 @@ declare global {
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'contextforge_fallback_dev_secret_key_2026';
+import { getJwtSecret } from '../config/env.js';
 
 export function extractToken(req: Request): string | null {
   // 1. Check Authorization: Bearer <token>
@@ -41,7 +41,7 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const decoded = jwt.verify(token, getJwtSecret()) as any;
     req.user = {
       user_id: decoded.user_id || decoded.id,
       id: decoded.user_id || decoded.id,
@@ -62,7 +62,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const decoded = jwt.verify(token, getJwtSecret()) as any;
     req.user = {
       user_id: decoded.user_id || decoded.id,
       id: decoded.user_id || decoded.id,
