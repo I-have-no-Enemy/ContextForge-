@@ -26,6 +26,8 @@ export interface RegistryCardProps {
   selected?: boolean;
   onToggle?: () => void;
   onInspect?: () => void;
+  /** Detail page link; the card title becomes the link. */
+  href?: string;
 }
 
 function short(n: number) {
@@ -33,7 +35,7 @@ function short(n: number) {
 }
 
 export function RegistryCard({
-  kind, name, description, verified, flagged, risk, command, tags, stats = [], selected, onToggle, onInspect,
+  kind, name, description, verified, flagged, risk, command, tags, stats = [], selected, onToggle, onInspect, href,
 }: RegistryCardProps) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<number>();
@@ -70,7 +72,15 @@ export function RegistryCard({
             <StatusBadge tone="idle">Pending review</StatusBadge>
           )}
         </div>
-        <h3 className="cf-card__name">{name}</h3>
+        <h3 className="cf-card__name">
+          {href ? (
+            <a className="cf-card__link" href={href}>
+              {name}
+            </a>
+          ) : (
+            name
+          )}
+        </h3>
         <p className="cf-card__desc">{description}</p>
         {command && (
           <div className="cf-cmd">
