@@ -19,9 +19,11 @@ export function createApp({ rateLimits = process.env.NODE_ENV !== 'test' }: AppO
   app.use(helmet());
   if (rateLimits) {
     const perMinute = (max: number) => rateLimit({ windowMs: 60_000, max });
-    const strict = perMinute(Number(process.env.RATE_LIMIT_STRICT_PER_MIN) || 10);
+    const strictMax = Number(process.env.RATE_LIMIT_STRICT_PER_MIN) || 10;
     app.use('/api/v1', perMinute(Number(process.env.RATE_LIMIT_PER_MIN) || 60));
-    app.use(['/api/v1/auth/login', '/api/v1/auth/register', '/api/v1/configs/generate'], strict);
+    // Separate budgets: brute-forcing login and scraping config generation are different abuse cases.
+    app.use(['/api/v1/auth/login', '/api/v1/auth/register'], perMinute(strictMax));
+    app.use('/api/v1/configs/generate', perMinute(strictMax));
   }
   app.use(
     cors({
