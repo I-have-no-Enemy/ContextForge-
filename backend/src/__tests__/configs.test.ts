@@ -22,13 +22,42 @@ const validConfigId = '33333333-3333-3333-3333-333333333333';
 describe('Config Generation & Snapshot Retrieval API (/api/v1/configs/*)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    // Default: run the transaction callback against the (spied) client itself.
+    vi.spyOn(prisma, '$transaction').mockImplementation(async (cb: any) => cb(prisma));
+  });
+
+  it('AC4: aborts with the rejected id when a server is revoked between read and write (race guard)', async () => {
+    vi.spyOn(prisma.mcpServer, 'findMany').mockResolvedValue([
+      { server_id: validServerId, name: 'pg', install_command: 'npx pg', required_env_vars: [] } as any,
+    ]);
+    const create = vi.fn();
+    vi.spyOn(prisma, '$transaction').mockImplementation(async (cb: any) =>
+      cb({
+        mcpServer: {
+          findMany: (a: any) => prisma.mcpServer.findMany(a),
+          // takedown committed first: the conditional increment matches zero rows
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        },
+        aiSkill: { findMany: vi.fn().mockResolvedValue([]), updateMany: vi.fn() },
+        clientConfig: { create },
+      })
+    );
+
+    const response = await request(app)
+      .post('/api/v1/configs/generate')
+      .send({ client_type: 'claude_desktop', selected_server_ids: [validServerId] });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('INVALID_SELECTION');
+    expect(response.body.error.details.rejected_server_ids).toEqual([validServerId]);
+    expect(create).not.toHaveBeenCalled();
   });
 
   describe('POST /api/v1/configs/generate', () => {
     it('should generate Claude Desktop configuration anonymously (HTTP 201)', async () => {
       vi.spyOn(prisma.mcpServer, 'findMany').mockResolvedValue([
         {
-          id: validServerId,
+          server_id: validServerId,
           name: 'postgres-inspector',
           install_command: 'npx -y @modelcontextprotocol/server-postgres postgresql://...',
           required_env_vars: ['DATABASE_URL'],
@@ -37,7 +66,7 @@ describe('Config Generation & Snapshot Retrieval API (/api/v1/configs/*)', () =>
 
       vi.spyOn(prisma.aiSkill, 'findMany').mockResolvedValue([
         {
-          id: validSkillId,
+          skill_id: validSkillId,
           name: 'anti-slop-designer',
           skill_content: '# Anti Slop Design Guideline\nAvoid exaggerated marketing hype and AI slop.',
         } as any,
@@ -74,9 +103,11 @@ describe('Config Generation & Snapshot Retrieval API (/api/v1/configs/*)', () =>
             create: vi.fn().mockResolvedValue(mockCreatedConfig),
           },
           mcpServer: {
+            findMany: (a: any) => prisma.mcpServer.findMany(a),
             updateMany: vi.fn().mockResolvedValue({ count: 1 }),
           },
           aiSkill: {
+            findMany: (a: any) => prisma.aiSkill.findMany(a),
             updateMany: vi.fn().mockResolvedValue({ count: 1 }),
           },
         };
@@ -102,7 +133,7 @@ describe('Config Generation & Snapshot Retrieval API (/api/v1/configs/*)', () =>
     it('should generate Cursor configuration for authenticated user attaching user_id (HTTP 201)', async () => {
       vi.spyOn(prisma.mcpServer, 'findMany').mockResolvedValue([
         {
-          id: validServerId,
+          server_id: validServerId,
           name: 'github-mcp',
           install_command: 'npx -y github-mcp',
           required_env_vars: ['GITHUB_TOKEN'],
@@ -134,9 +165,11 @@ describe('Config Generation & Snapshot Retrieval API (/api/v1/configs/*)', () =>
             create: vi.fn().mockResolvedValue(mockCreatedConfig),
           },
           mcpServer: {
+            findMany: (a: any) => prisma.mcpServer.findMany(a),
             updateMany: vi.fn().mockResolvedValue({ count: 1 }),
           },
           aiSkill: {
+            findMany: (a: any) => prisma.aiSkill.findMany(a),
             updateMany: vi.fn().mockResolvedValue({ count: 0 }),
           },
         };
@@ -205,7 +238,7 @@ describe('Config Generation & Snapshot Retrieval API (/api/v1/configs/*)', () =>
       // Server is valid, but skill is not found
       vi.spyOn(prisma.mcpServer, 'findMany').mockResolvedValue([
         {
-          id: validServerId,
+          server_id: validServerId,
           name: 'test-server',
           install_command: 'npx test',
           required_env_vars: [],

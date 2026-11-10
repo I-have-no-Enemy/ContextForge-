@@ -4,6 +4,17 @@ import { sendSuccess, sendError } from '../utils/response.js';
 import { generateConfigSchema, configIdParamSchema } from '../validators/config.validator.js';
 import { ConfigGenerator } from '../services/configGenerator.service.js';
 
+/** Thrown inside the generation transaction to roll it back with the offending ids. */
+class SelectionError extends Error {
+  constructor(
+    public kind: 'servers' | 'skills',
+    public serverIds: string[],
+    public skillIds: string[]
+  ) {
+    super('INVALID_SELECTION');
+  }
+}
+
 export class ConfigController {
   /**
    * POST /api/v1/configs/generate
@@ -22,98 +33,81 @@ export class ConfigController {
       return;
     }
 
-    const { client_type, selected_server_ids, selected_skill_ids } = parseResult.data;
+    const { client_type } = parseResult.data;
+    const serverIds = [...new Set(parseResult.data.selected_server_ids)];
+    const skillIds = [...new Set(parseResult.data.selected_skill_ids)];
+    const live = { is_verified: true, is_deleted: false };
 
-    // 1. Verify all selected servers exist, are verified, and are not deleted
-    let servers: Array<{ id: string; server_id: string; name: string; install_command: string; required_env_vars: any }> = [];
-    if (selected_server_ids.length > 0) {
-      const rawServers = await prisma.mcpServer.findMany({
-        where: {
-          server_id: { in: selected_server_ids },
-          is_verified: true,
-          is_deleted: false,
-        },
-        select: {
-          server_id: true,
-          name: true,
-          install_command: true,
-          required_env_vars: true,
-        },
-      });
+    // Read, verify, increment and snapshot inside ONE transaction. The conditional
+    // updateMany re-checks verification at write time, so a takedown that commits
+    // between our read and write aborts the whole generation (spec US2 scenario 2).
+    let newConfig;
+    try {
+      newConfig = await prisma.$transaction(async (tx) => {
+        const rawServers = serverIds.length
+          ? await tx.mcpServer.findMany({
+              where: { server_id: { in: serverIds }, ...live },
+              select: { server_id: true, name: true, install_command: true, required_env_vars: true },
+            })
+          : [];
+        const rawSkills = skillIds.length
+          ? await tx.aiSkill.findMany({
+              where: { skill_id: { in: skillIds }, ...live },
+              select: { skill_id: true, name: true, skill_content: true },
+            })
+          : [];
 
-      servers = rawServers.map((s) => ({ ...s, id: s.server_id }));
+        const foundServers = new Set(rawServers.map((s) => s.server_id));
+        const foundSkills = new Set(rawSkills.map((s) => s.skill_id));
+        const rejectedServers = serverIds.filter((id) => !foundServers.has(id));
+        const rejectedSkills = skillIds.filter((id) => !foundSkills.has(id));
+        if (rejectedServers.length) throw new SelectionError('servers', rejectedServers, []);
+        if (rejectedSkills.length) throw new SelectionError('skills', [], rejectedSkills);
 
-      if (servers.length !== selected_server_ids.length) {
-        sendError(
-          res,
-          400,
-          'One or more selected MCP servers are invalid, unverified, or not found.',
-          'INVALID_SELECTION'
-        );
-        return;
-      }
-    }
+        if (serverIds.length) {
+          const { count } = await tx.mcpServer.updateMany({
+            where: { server_id: { in: serverIds }, ...live },
+            data: { downloads_count: { increment: 1 } },
+          });
+          if (count !== serverIds.length) throw new SelectionError('servers', serverIds, []);
+        }
+        if (skillIds.length) {
+          const { count } = await tx.aiSkill.updateMany({
+            where: { skill_id: { in: skillIds }, ...live },
+            data: { downloads_count: { increment: 1 } },
+          });
+          if (count !== skillIds.length) throw new SelectionError('skills', [], skillIds);
+        }
 
-    // 2. Verify all selected skills exist, are verified, and are not deleted
-    let skills: Array<{ id: string; skill_id: string; name: string; skill_content: string }> = [];
-    if (selected_skill_ids.length > 0) {
-      const rawSkills = await prisma.aiSkill.findMany({
-        where: {
-          skill_id: { in: selected_skill_ids },
-          is_verified: true,
-          is_deleted: false,
-        },
-        select: {
-          skill_id: true,
-          name: true,
-          skill_content: true,
-        },
-      });
-
-      skills = rawSkills.map((s) => ({ ...s, id: s.skill_id }));
-
-      if (skills.length !== selected_skill_ids.length) {
-        sendError(
-          res,
-          400,
-          'One or more selected AI skills are invalid, unverified, or not found.',
-          'INVALID_SELECTION'
-        );
-        return;
-      }
-    }
-
-    // 3. Generate client config JSON via deep module
-    const generatedJson = ConfigGenerator.generate(client_type, servers, skills);
-
-    // 4. Save snapshot and increment download counters in an atomic transaction
-    const newConfig = await prisma.$transaction(async (tx) => {
-      const configRecord = await tx.clientConfig.create({
-        data: {
-          user_id: req.user?.user_id || req.user?.id || null,
+        const generatedJson = ConfigGenerator.generate(
           client_type,
-          selected_server_ids,
-          selected_skill_ids,
-          generated_json: generatedJson,
-        },
+          rawServers.map((s) => ({ ...s, id: s.server_id })),
+          rawSkills.map((s) => ({ ...s, id: s.skill_id }))
+        );
+
+        return tx.clientConfig.create({
+          data: {
+            user_id: req.user?.user_id || req.user?.id || null,
+            client_type,
+            selected_server_ids: serverIds,
+            selected_skill_ids: skillIds,
+            generated_json: generatedJson,
+          },
+        });
       });
-
-      if (selected_server_ids.length > 0) {
-        await tx.mcpServer.updateMany({
-          where: { server_id: { in: selected_server_ids } },
-          data: { downloads_count: { increment: 1 } },
-        });
+    } catch (err) {
+      if (err instanceof SelectionError) {
+        sendError(
+          res,
+          400,
+          `One or more selected ${err.kind === 'servers' ? 'MCP servers' : 'AI skills'} are invalid, unverified, or not found.`,
+          'INVALID_SELECTION',
+          { rejected_server_ids: err.serverIds, rejected_skill_ids: err.skillIds }
+        );
+        return;
       }
-
-      if (selected_skill_ids.length > 0) {
-        await tx.aiSkill.updateMany({
-          where: { skill_id: { in: selected_skill_ids } },
-          data: { downloads_count: { increment: 1 } },
-        });
-      }
-
-      return configRecord;
-    });
+      throw err;
+    }
 
     const configId = (newConfig as any).config_id || (newConfig as any).id;
     sendSuccess(res, { ...newConfig, config_id: configId, id: configId }, 201);
