@@ -16,3 +16,4 @@
 
 | Date | Asset | Model | Credits | Prompt suffix | Output |
 |---|---|---|---|---|---|
+| 2026-11-11 | hero film | Veo 3.1 - Lite, 16:9, 8 s | 10 | style prefix + "beams of lime green and teal light" + negatives | `frontend/public/media/hero.mp4` (ping-pong 16 s, 759 KB), poster = frame 0 |
