@@ -28,7 +28,7 @@ npm run sync:github --workspace=backend   # real GitHub stars and contributors
 npm run dev                               # API http://localhost:5000, web http://localhost:3000
 ```
 
-The seed generates account passwords into `backend/prisma/seed-accounts.local.json` (gitignored) unless `SEED_ADMIN_PASSWORD` and `SEED_MAINTAINER_PASSWORD` are set.
+The seed generates account passwords into `backend/prisma/seed-accounts.local.json` (gitignored) unless `SEED_ADMIN_PASSWORD` and `SEED_MAINTAINER_PASSWORD` are set. Move them into a password manager and delete the file; on Windows the project keeps them in Credential Manager as `ContextForge/<email>`, and `pwsh scripts/get-password.ps1 [email]` copies one to the clipboard.
 
 ## Scripts (backend workspace)
 

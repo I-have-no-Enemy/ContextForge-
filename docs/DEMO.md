@@ -11,9 +11,9 @@ npm run db:check --workspace=backend   # ต้องเห็น "connected; 12
 npm run dev                            # API :5000 + เว็บ :3000
 ```
 
-- รหัสผ่านบัญชีจริงอยู่ใน `backend/prisma/seed-accounts.local.json` (ไม่อยู่ใน git)
+- รหัสผ่านบัญชีจริงเก็บใน Windows Credential Manager (`ContextForge/<email>`) คัดลอกลง clipboard ด้วย `pwsh scripts/get-password.ps1` (ไม่แสดงบนจอ)
   - `admin@contextforge.dev` (admin)
-  - `maintainer@contextforge.dev` (developer เจ้าของ server และ skill ที่ seed ไว้)
+  - `maintainer@contextforge.dev` (developer เจ้าของ server และ skill ที่ seed ไว้): `pwsh scripts/get-password.ps1 maintainer@contextforge.dev`
 - เปิดแท็บไว้ 4 แท็บ: เว็บ `http://localhost:3000`, Supabase Table Editor, Postman, VS Code ที่ `docs/API.md`
 - ถ้าอยากเริ่มจากข้อมูลสะอาด: `npm run seed --workspace=backend` แล้ว `npm run sync:github --workspace=backend` (seed จะลบข้อมูลเดิมทั้งหมดและสุ่มรหัสใหม่)
 
