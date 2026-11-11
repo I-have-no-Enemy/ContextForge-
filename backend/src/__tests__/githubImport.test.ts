@@ -317,6 +317,11 @@ describe('GitHub import: MCP servers (AC-I5)', () => {
     expect(parseMcpReadme(readme).tools.map((t) => t.name)).toEqual(['search_docs', 'fetch_page']);
   });
 
+  it('does not mistake environment variable names for tools', () => {
+    const readme = ['## Tools', '- **IDA_MCP_MAX_WORKERS** - how many workers to start', '- **list_functions** - list functions in the binary'].join('\n');
+    expect(parseMcpReadme(readme).tools.map((t) => t.name)).toEqual(['list_functions']);
+  });
+
   it('reduces install commands to a package key', () => {
     expect(packageKey('npx -y @supabase/mcp-server-supabase@latest --read-only')).toBe('@supabase/mcp-server-supabase');
     expect(packageKey('uvx mcp-server-git --repository /x')).toBe('mcp-server-git');

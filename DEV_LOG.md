@@ -564,3 +564,19 @@
 - **บั๊กที่เจอระหว่างทาง**: `safeInstallCommand` ยุบบรรทัดใหม่เป็นช่องว่างก่อนตรวจ (test จับได้); run แรกกับ topic ล้มทั้งรอบเพราะ README ยาวเกิน 100,000 ตัวอักษร (ตอนนี้ตัดแทนปฏิเสธ); import สร้างรายการซ้ำกับ seed (`memory-modelcontextprotocol`, `context7-upstash`) และสกิล `*-automation` 35 ตัวจากเทมเพลต ลบเฉพาะแถวที่ import เองและยัง pending แล้ว
 - **ผลการตรวจ**: `npm test` 159/159, `npm run e2e` Postman 55 request / 81 assertion ผ่านหมด, `tsc` และ `vite build` ผ่าน, `check-docs` ผ่าน, `db:check` 12/12
 - **ข้อจำกัด**: โควตา GitHub แบบไม่ใช้ token คือ 60 call/ชม. ไม่มี `GITHUB_PAT` จะได้ 60 call/ชม. และ awesome list ไม่ถูกจัดอันดับตามดาว; รายการ tool และระดับความเสี่ยงของ MCP ที่ import มาอ่านจาก README ด้วยคีย์เวิร์ด ยังไม่ผ่านการยืนยัน (บางตัวได้ 40 tools ซึ่งเป็นเพดาน อาจรวมบรรทัดที่ไม่ใช่ tool)
+
+---
+
+### Entry #020: หน้าแรกสั้นลง, อ่านสกิลได้, กดการ์ดแล้วเปิดรายละเอียด (branch `feat/audit-fixes-and-import`)
+- **วันที่**: `2026-11-11`
+- **ผู้ดำเนินการ**: Claude Code (แผนงาน `contextforge-import-fixes`)
+- **ปัญหา** หลังตะวันอนุมัติรายการที่ import (44 servers, 139 skills) ส่วน "Four kinds of reach" แสดงครบ 539 tools จนต้องเลื่อนไกลกว่าจะถึงแท็บ MCP/Skills
+- **แก้**
+  - แต่ละ lane แสดง 8 tools (ไล่จาก server ดาวสูงสุด สลับทีละ server) พร้อม "N more in the registry" และตัวเลขรวมยังเป็นของจริง (539 tools, 44 servers); ปุ่ม "Browse 44 MCP servers" และ "Browse 139 skills" เลื่อนไปที่รายการและเปลี่ยนแท็บให้
+  - ระยะจาก lanes ถึงรายการ: desktop 926px (1 หน้าจอ), มือถือ 1,076px (1.3 หน้าจอ)
+  - หน้า detail ของสกิลมีโหมด Read (จัดรูปหัวข้อ รายการ โค้ด ลิงก์ https) กับ SKILL.md source; สร้างจาก React element เท่านั้น ไม่ฉีด HTML
+  - การ์ดสกิลแสดงแท็กต้นทาง (github, เจ้าของ repo) แทนป้าย client ที่เหมือนกันทุกใบ; คำอธิบายตัดที่ 4 บรรทัด; กดตรงไหนของการ์ดก็เปิดหน้ารายละเอียด
+  - รายการเรียง `downloads_count`, `github_stars`, `name` (ทุกรายการมี downloads 0 ลำดับเดิมไม่แน่นอนและแบ่งหน้าอาจซ้ำ/ตกหล่น)
+- **บั๊กข้อมูลที่เจอ**: parser อ่านชื่อตัวแปร env `IDA_MCP_MAX_WORKERS` เป็น tool ของ `ida-pro-mcp` ที่ถูกอนุมัติแล้ว ถอนออกจากหน้าสาธารณะแบบ takedown (บันทึก review) และแก้ parser ให้ปฏิเสธชื่อ ALL_CAPS พร้อม test
+- **ที่ยังเหลือ**: สกิล 5 รายการที่ scanner ติด flag ยังอยู่ในคิว (browser-testing-with-devtools, create-agent-adapter, paperclip, security-and-hardening, source-driven-development) ให้ admin อ่านก่อนตัดสิน
+- **ผลการตรวจ**: `npm test` 160/160, `tsc` และ `vite build` ผ่าน, `check-docs` ผ่าน, วัดด้วย Playwright บนข้อมูลจริง (อ่านอย่างเดียว) ที่ 1440 และ 375

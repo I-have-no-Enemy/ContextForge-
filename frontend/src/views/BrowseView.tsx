@@ -79,6 +79,12 @@ export function BrowseView() {
     setClient('all');
   };
 
+  const openRegistry = (next: 'servers' | 'skills') => {
+    setTab(next);
+    // Wait one frame so the tab content has rendered before scrolling to it.
+    window.requestAnimationFrame(() => document.getElementById('browse')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+
   const cards =
     tab === 'servers'
       ? servers.map((s) => (
@@ -106,7 +112,7 @@ export function BrowseView() {
             href={href.skill(k.id)}
             name={k.name}
             description={k.description || 'AI playbook and workflow specification.'}
-            tags={k.compatible_clients}
+            tags={k.tags?.length ? k.tags.slice(0, 4) : k.compatible_clients}
             verified={k.is_verified ?? true}
             flagged={Boolean(k.scan_flags?.prompt_injection_detected)}
             stats={[{ label: 'exports', value: k.downloads_count }]}
@@ -118,7 +124,7 @@ export function BrowseView() {
   return (
     <>
       <ComposerHero />
-      <RiskLanes />
+      <RiskLanes serverTotal={meta.servers?.total} skillTotal={meta.skills?.total} onOpen={openRegistry} />
 
       <section className="section pg" id="browse" aria-labelledby="browse-h">
         <div className="sec-h">

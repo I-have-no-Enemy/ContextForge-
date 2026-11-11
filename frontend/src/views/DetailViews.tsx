@@ -12,6 +12,8 @@ import { Tag } from '../components/ui/badge';
 import { RiskMeter, maxRisk } from '../components/ui/risk-meter';
 import { ScanReport, parseScanFlags } from '../components/ui/scan-report';
 import { EmptyState } from '../components/ui/empty-state';
+import { Tabs } from '../components/ui/tabs';
+import { SkillDoc } from '../components/SkillDoc';
 import { ConfirmDialog, ReviewBadge } from '../components/forms';
 import { ServerEditor, SkillEditor, ToolEditor } from '../components/editors';
 
@@ -257,6 +259,7 @@ export function SkillDetailView({ id }: { id: string }) {
   const load = useCallback(() => api.getSkill(id), [id]);
   const { data: skill, error, reload } = useRecord<AiSkill>(load);
   const [editing, setEditing] = useState(false);
+  const [view, setView] = useState<'doc' | 'source'>('doc');
   const [deleting, setDeleting] = useState(false);
 
   if (error) return <DetailShell kind="Skill"><NotFound kind="Skill" error={error} /></DetailShell>;
@@ -341,10 +344,23 @@ export function SkillDetailView({ id }: { id: string }) {
           {flagged && (
             <ScanReport name={skill.name} score={scan?.riskScore ?? 0} flags={parseScanFlags(scan?.flags)} excerpt={skill.skill_content} />
           )}
-          {/* Rendered as plain text: skill content is untrusted (OWASP LLM02). */}
-          <pre className="cf-code skill-source" aria-label="SKILL.md source">
-            {skill.skill_content}
-          </pre>
+          <Tabs
+            label="How to read this skill"
+            value={view}
+            onChange={(id) => setView(id as 'doc' | 'source')}
+            items={[
+              { id: 'doc', label: 'Read' },
+              { id: 'source', label: 'SKILL.md source' },
+            ]}
+          />
+          {/* Built from React elements only, never injected as HTML: skill content is untrusted (OWASP LLM01, LLM02). */}
+          {view === 'doc' ? (
+            <SkillDoc source={skill.skill_content} />
+          ) : (
+            <pre className="cf-code skill-source" aria-label="SKILL.md source">
+              {skill.skill_content}
+            </pre>
+          )}
         </div>
       </div>
 

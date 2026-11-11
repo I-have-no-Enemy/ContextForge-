@@ -144,7 +144,7 @@ button.cf-tag:hover { color: var(--color-chalk); border-color: var(--color-smoke
 .cf-card__kind { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-8); font-family: var(--font-input); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-smoke); }
 .cf-card__kind-l { display: inline-flex; align-items: center; gap: var(--spacing-8); }
 .cf-card__name { margin: 0; font-size: 23px; line-height: 1.07; font-weight: 400; color: var(--color-chalk); overflow-wrap: anywhere; }
-.cf-card__desc { margin: 0; font-size: 14px; line-height: 1.43; color: var(--color-smoke); }
+.cf-card__desc { margin: 0; font-size: 14px; line-height: 1.43; color: var(--color-smoke); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; } /* the full text is on the detail page */
 .cf-cmd {
   display: flex; align-items: center; gap: var(--spacing-8); background: var(--color-carbon);
   border: 1px solid var(--color-graphite); border-radius: var(--radius-md); padding: 10px 10px 10px 14px;
@@ -444,3 +444,22 @@ a.row__name:hover { text-decoration: underline; text-underline-offset: 4px; }
 .import__result summary { cursor: pointer; padding-block: 4px; }
 .import__list { margin: 8px 0 0; padding-left: 18px; max-height: 260px; overflow: auto; display: grid; gap: 4px; }
 @media (max-width: 599px) { .import__row { grid-template-columns: minmax(0, 1fr); } }
+
+/* Skill detail: SKILL.md read as a document */
+.skill-doc { max-width: 72ch; display: grid; gap: 14px; font-size: 16px; line-height: 1.6; color: var(--color-chalk); }
+.skill-doc h2, .skill-doc h3, .skill-doc h4, .skill-doc h5, .skill-doc h6 { margin: 18px 0 0; line-height: 1.25; font-weight: 500; }
+.skill-doc h2 { font-size: 24px; }
+.skill-doc h3 { font-size: 20px; }
+.skill-doc h4, .skill-doc h5, .skill-doc h6 { font-size: 16px; }
+.skill-doc p, .skill-doc ul, .skill-doc ol, .skill-doc blockquote { margin: 0; }
+.skill-doc ul, .skill-doc ol { padding-left: 1.3em; display: grid; gap: 6px; }
+.skill-doc code { font-family: var(--font-input); font-size: 0.9em; background: var(--color-obsidian); border: 1px solid var(--color-graphite); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
+.skill-doc blockquote { border-left: 3px solid var(--color-iron); padding-left: 14px; color: var(--color-smoke); }
+.skill-doc pre.cf-code { max-height: 60vh; overflow: auto; }
+
+/* The whole card opens the detail page; the title link stretches over it. Buttons stay on top and work on their own. */
+.cf-card { position: relative; cursor: pointer; }
+.cf-card__link::after { content: ''; position: absolute; inset: 0; }
+.cf-card button, .cf-card a:not(.cf-card__link) { position: relative; z-index: 1; }
+.cf-card__link:focus-visible { outline: none; }
+.cf-card:has(.cf-card__link:focus-visible) { outline: 2px solid var(--color-chalk); outline-offset: 3px; }

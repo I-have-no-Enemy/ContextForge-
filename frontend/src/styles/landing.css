@@ -451,3 +451,16 @@
     scroll-snap-align: start;
   }
 }
+
+/* Lanes: jump buttons and the "more" row */
+.lanes__jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 12px 0 0;
+}
+.lane__more {
+  padding-block: 6px;
+  color: var(--text-muted);
+  font-size: var(--step--1);
+}

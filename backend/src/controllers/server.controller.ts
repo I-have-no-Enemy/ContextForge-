@@ -31,7 +31,8 @@ export class ServerController {
           where: whereClause,
           skip,
           take: limit,
-          orderBy: { downloads_count: 'desc' },
+          // name is the tie-breaker so pages never repeat or skip a row when many servers share the same counts
+          orderBy: [{ downloads_count: 'desc' }, { github_stars: 'desc' }, { name: 'asc' }],
           select: {
             server_id: true,
             name: true,

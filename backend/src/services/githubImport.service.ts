@@ -271,7 +271,8 @@ function extractTools(readme: string): Array<{ name: string; description: string
   const tools: Array<{ name: string; description: string }> = [];
   const seen = new Set<string>();
   const add = (name: string, description: string) => {
-    if (!/^[A-Za-z][\w.-]{1,63}$/.test(name) || seen.has(name) || tools.length >= 40) return null;
+    // ALL_CAPS names are environment variables mentioned in the README, not tools.
+    if (!/^[A-Za-z][\w.-]{1,63}$/.test(name) || /^[A-Z0-9_]{4,}$/.test(name) || seen.has(name) || tools.length >= 40) return null;
     seen.add(name);
     const tool = { name, description: clean(description).slice(0, 300) };
     tools.push(tool);
