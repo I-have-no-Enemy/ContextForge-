@@ -521,3 +521,24 @@
   - `tsc --noEmit` และ `vite build` (frontend): 0 errors
   - ทดสอบ end-to-end ด้วย Playwright บน build จริงโดย mock `/api/v1` จาก seed data: 16/16 checks ผ่าน (เพิ่มลง cart, คำเตือน client, generate, Esc ปิด dialog, `/` focus search, empty state, admin reject ต้องมี note, mobile 390px ไม่มี horizontal scroll)
   - ยังไม่ได้ทดสอบกับฐานข้อมูล Supabase จริง
+
+
+---
+
+### Entry #018: ปิดงานตามข้อกำหนดวิชา, เลิกใช้ mock, ทดสอบกับ PostgreSQL จริง (branch `feat/final-polish`)
+- **วันที่**: `2026-11-10` ถึง `2026-11-11`
+- **ผู้ดำเนินการ**: Claude Code (แผนงาน `contextforge-final`, ตะวันอนุมัติทุก Gate)
+- **Backend**
+  - owner แก้ server หรือ skill ที่อนุมัติแล้ว: `is_verified = false` และเข้าคิวรีวิวใหม่ (กัน bait-and-switch), skill สแกนใหม่ทุกครั้ง
+  - generate config ตรวจ verified ภายใน transaction ด้วย `updateMany` แบบมีเงื่อนไข; takedown ที่แทรกกลาง request ทำให้ rollback และตอบ id ที่ถูกปฏิเสธ
+  - rate limit 60/นาที ทั่วไป, 10/นาที สำหรับ login/register และ generate (429 + `Retry-After`)
+  - `JWT_SECRET` บังคับใน production (32 ตัวขึ้นไป), bcrypt cost 12, DELETE ตอบ 204, path id ผิดรูปตอบ 400 `INVALID_ID`
+  - endpoint ใหม่: `/servers/me`, `/skills/me`, `/configs/me`, `/admin/metrics`, `/admin/sync/github`, `/skills/scan`, `DELETE /servers/:id/tools/:toolId`
+  - error handler: DB ล่มตอบ 503, P2002 เป็น 409, P2025 เป็น 404, 500 ไม่ส่งรายละเอียดภายใน; `/health` ถาม DB จริง
+  - config ที่ generate เป็นรูปแบบไฟล์จริงของแต่ละ client และ skill ออกเป็นไฟล์ตาม path ของ client
+- **บั๊กที่เจอ**: `dotenv.config()` รันหลัง ESM import ทำให้ไม่เคยอ่าน `JWT_SECRET` จริง; route async ของ admin/config ไม่มี try/catch ทำให้ process ปิดเมื่อ DB error
+- **Frontend**: แยกหน้าเป็น Browse / Server / Skill / Workspace / Admin, session ผ่าน HttpOnly cookie, ฟอร์มส่ง/แก้/ลบ, สแกนก่อนส่ง, admin metrics, takedown, pagination, toast aria-live, error boundary; ลบปุ่มบัญชีเดโม
+- **ข้อมูล**: seed เป็น MCP server ที่มีอยู่จริง 10 ตัว (35 tools) และ skill 5 ตัว, ดาว GitHub sync จาก api.github.com, รหัสผ่านบัญชีสุ่มลงไฟล์ local ที่ไม่อยู่ใน git; ใส่ index 12 ตัว (GIN 4 ตัว) เข้า Supabase
+- **การทดสอบ**: เลิก mock Prisma ทั้งหมด, 111 integration test ยิง PostgreSQL จริงใน schema `ctxforge_test` (ไม่แตะ `public`), มี test race ด้วย row lock จริง; `npm run e2e` รัน Postman 50 request / 74 assertion ผ่านหมด
+- **เอกสาร**: `docs/API.md` (29 endpoint), `docs/postman/`, `docs/DEMO.md`, `CASE_STUDY.md`, README ใหม่
+- **ผลการตรวจ**: `npm test --workspace=backend` 111/111, `tsc` backend/frontend ผ่าน, `vite build` ผ่าน, `node scripts/check-docs.mjs` ผ่าน

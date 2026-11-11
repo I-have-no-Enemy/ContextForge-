@@ -1,64 +1,58 @@
-# ⚡ ContextForge
+# ContextForge
 
-> **Unified Governance, Security & Config Registry for MCP Tools and AI Skills**
+Registry for MCP servers and AI skills (`SKILL.md`) that shows what each tool can touch, scans skills for prompt injection, puts every submission through admin review, and generates ready-to-use config files for Claude Desktop, Cursor, Cline and Antigravity.
 
-ContextForge is a centralized platform designed to manage, secure, evaluate, and generate client configurations for **Model Context Protocol (MCP) Servers** and **AI Skills (`SKILL.md`)** across AI Agent ecosystems (Claude Desktop, Cursor, Cline, Antigravity).
+Course project for 06016418 Server-Side Web Development, KMITL IT.
 
----
+## What it does
 
-## 🌟 Core Features
+- **Browse without an account.** Verified servers and skills, searchable, paginated. Each server shows its highest-risk tool (`read_only`, `network`, `filesystem`, `destructive`).
+- **Submit as a developer.** New servers and skills start unverified. Skills are scanned for prompt-injection patterns (OWASP LLM01) on create and on every edit.
+- **Review as an admin.** Scanner hits go to the top of the queue. Approve, reject with a note, or take an item down; every decision is logged.
+- **Edits go back to review.** When an owner edits an approved item it leaves the public registry until an admin approves it again.
+- **Generate configs.** Pick servers and skills, choose a client, and get the client's real config file plus skill files in the format that client loads. Snapshots never change afterwards.
+- **GitHub metrics.** Stars and contributors are synced from the GitHub API on demand.
 
-- **Dual-Ecosystem Registry**: First-class governance for both executable MCP tools and reusable AI instruction skills.
-- **Security & Threat Governance**:
-  - MCP Risk Rating (`read_only`, `network`, `filesystem`, `destructive`) with environment variable credential masking.
-  - Indirect Prompt Injection Scanning & Validation for AI skills.
-- **One-Click Config Generator**: Compose verified MCP servers and skills into ready-to-use client JSON configurations.
-- **Zero-Trust JWT RBAC**: Strict role boundaries (`Public`, `Developer`, `Admin`) with token-claim extraction and Row-Level Security (RLS).
-- **PostgreSQL JSONB + Relational Foundation**: Relational integrity for entities with GIN-indexed JSONB for dynamic parameter schemas.
-- **Spec-Driven Architecture**: Grounded in GitHub Spec Kit (SDD), 2026 Enterprise Testing Checklist, and Ponytail Minimalist Engineering.
+## Stack
 
----
+Express 4 + TypeScript, Prisma 5, PostgreSQL 17 (Supabase), zod, JWT in an HttpOnly cookie, bcrypt (cost 12). React 18 + Vite frontend. Vitest + Supertest integration tests against a real PostgreSQL schema.
 
-## 📚 Living Documentation & Logs
-
-- **Action & Development Log**: [`DEV_LOG.md`](DEV_LOG.md) (Detailed chronology of all actions, timestamps, and architectural changes)
-- **Feature Specification**: [`specs/001-mcp-skills-registry/spec.md`](specs/001-mcp-skills-registry/spec.md)
-- **UX Specification**: [`UX.md`](UX.md) (Personas, responsive layouts, actionable empty states, WCAG 2.2 AA)
-- **Design System**: [`DESIGN.md`](DESIGN.md) (Hyperstudio Obsidian/Hairline theme tokens)
-
----
-
-## 🚀 Monorepo Quickstart
+## Run it
 
 ```bash
-# 1. Start Local PostgreSQL 16
-docker compose up -d
-
-# 2. Setup Environment
-cp .env.example .env
-
-# 3. Install & Start Monorepo (Concurrent Backend + Frontend)
 npm install
-npm run dev
+cp .env.example .env      # set DATABASE_URL (Supabase session pooler URI) and JWT_SECRET (32+ chars)
+npm run db:check --workspace=backend
+npm run seed --workspace=backend          # WIPES the tables, loads 10 real MCP servers and 5 skills
+npm run sync:github --workspace=backend   # real GitHub stars and contributors
+npm run dev                               # API http://localhost:5000, web http://localhost:3000
 ```
 
----
+The seed generates account passwords into `backend/prisma/seed-accounts.local.json` (gitignored) unless `SEED_ADMIN_PASSWORD` and `SEED_MAINTAINER_PASSWORD` are set.
 
-## 📂 Architecture & Spec-Kit Workflows
+## Scripts (backend workspace)
 
-ContextForge is built using **GitHub Spec Kit** (`.specify/`):
+| Command | What it does |
+|---|---|
+| `npm test` | 111 integration tests against the isolated `ctxforge_test` schema (never touches `public`) |
+| `npm run e2e` | Seeds the test schema, starts the API with rate limits on, runs the Postman collection with newman |
+| `npm run dev:testdb` | Real API on the seeded test schema, for trying the UI without changing real data |
+| `npm run db:check` | Connectivity and required-index check; prints no secrets |
+| `npm run seed` | Resets and seeds the schema in `DATABASE_URL` |
+| `npm run sync:github` | One-off GitHub metrics sync |
 
-- **Constitution**: [`.specify/memory/constitution.md`](.specify/memory/constitution.md)
-- **Workflows**:
-  - `/speckit-specify` - Define feature specifications
-  - `/speckit-plan` - Architecture & implementation planning
-  - `/speckit-tasks` - Atomic task breakdowns
-  - `/speckit-implement` - Test-Driven Implementation
-  - `/speckit-converge` - Verification against spec
-  - `/speckit-bug-*` - Bug Triage (Assess → Fix → Test)
-  - `/speckit-assess-*` - Idea Assessment Pipeline
+Root: `node scripts/check-docs.mjs` (doc checks), `node scripts/build-postman.mjs` (regenerates the Postman files).
 
----
+## Documentation
 
-## 📄 License
+- [`docs/API.md`](docs/API.md): 29 endpoints with method, path, description, role and status codes; data model; error codes; OWASP mapping
+- [`docs/postman/`](docs/postman): Postman collection and environment
+- [`docs/DEMO.md`](docs/DEMO.md): presentation script
+- [`CASE_STUDY.md`](CASE_STUDY.md): problem, decisions, results
+- [`specs/001-mcp-skills-registry/spec.md`](specs/001-mcp-skills-registry/spec.md): feature specification
+- [`DESIGN.md`](DESIGN.md), [`UX.md`](UX.md): design system and UX notes
+- [`DEV_LOG.md`](DEV_LOG.md): development log
+
+## License
+
 MIT
