@@ -214,6 +214,30 @@ const folders = [
         token: 'adminToken',
         tests: [status(200), `pm.test('summary', () => pm.expect(pm.response.json().data).to.have.property('checked'));`],
       }),
+      req('Import without token -> 401', 'POST', '/admin/import/github', {
+        body: { url: 'https://github.com/modelcontextprotocol/servers', kind: 'mcp', dry_run: true },
+        tests: [status(401)],
+      }),
+      req('Import as Developer -> 403', 'POST', '/admin/import/github', {
+        token: 'tokenA',
+        body: { url: 'https://github.com/modelcontextprotocol/servers', kind: 'mcp', dry_run: true },
+        tests: [status(403)],
+      }),
+      req('Import from a non-GitHub URL -> 400', 'POST', '/admin/import/github', {
+        token: 'adminToken',
+        body: { url: 'https://169.254.169.254/latest/meta-data', kind: 'skill' },
+        tests: [status(400), errCode('INVALID_IMPORT_URL')],
+      }),
+      req('Approve scanner-clean imports as Developer -> 403', 'POST', '/admin/submissions/approve-clean', {
+        token: 'tokenA',
+        body: { item_type: 'skill' },
+        tests: [status(403)],
+      }),
+      req('Approve scanner-clean imports (Admin)', 'POST', '/admin/submissions/approve-clean', {
+        token: 'adminToken',
+        body: { item_type: 'skill' },
+        tests: [status(200), `pm.test('counts', () => pm.expect(pm.response.json().data).to.have.property('approved'));`],
+      }),
     ],
   },
   {

@@ -13,6 +13,7 @@ import { RiskMeter } from '../components/ui/risk-meter';
 import { ScanReport, parseScanFlags } from '../components/ui/scan-report';
 import { EmptyState } from '../components/ui/empty-state';
 import { ConfirmDialog } from '../components/forms';
+import { ImportPanel } from '../components/ImportPanel';
 
 type Filter = 'pending' | 'flagged' | 'all';
 
@@ -197,6 +198,8 @@ export function AdminView() {
       )}
 
       {metrics ? <MetricsStrip m={metrics} /> : <div className="skeleton skeleton--metrics" aria-busy="true" />}
+
+      <ImportPanel onDone={load} />
 
       <Tabs
         label="Queue filter"

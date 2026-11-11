@@ -151,6 +151,17 @@ export function ServerDetailView({ id }: { id: string }) {
           </dd>
           <dt>Config exports</dt>
           <dd className="cf-mono">{server.downloads_count}</dd>
+          {server.source_url && (
+            <>
+              <dt>Imported from</dt>
+              <dd>
+                <a className="ext-link" href={server.source_url} target="_blank" rel="noreferrer noopener">
+                  {server.source_url.replace(/^https?:\/\//, '').replace(/\/(blob|tree)\/[0-9a-f]{40}/, '')} <ExternalLink size={12} aria-hidden="true" />
+                </a>
+                <span className="cf-muted"> · license {server.source_license ?? 'not declared'}</span>
+              </dd>
+            </>
+          )}
           {server.user && (
             <>
               <dt>Submitted by</dt>
@@ -307,6 +318,17 @@ export function SkillDetailView({ id }: { id: string }) {
           </dd>
           <dt>Config exports</dt>
           <dd className="cf-mono">{skill.downloads_count}</dd>
+          {skill.source_url && (
+            <>
+              <dt>Imported from</dt>
+              <dd>
+                <a className="ext-link" href={skill.source_url} target="_blank" rel="noreferrer noopener">
+                  {skill.source_url.replace(/^https?:\/\//, '').replace(/\/(blob|tree)\/[0-9a-f]{40}/, '')} <ExternalLink size={12} aria-hidden="true" />
+                </a>
+                <span className="cf-muted"> · license {skill.source_license ?? 'not declared'}</span>
+              </dd>
+            </>
+          )}
           {skill.user && (
             <>
               <dt>Submitted by</dt>

@@ -9,6 +9,8 @@ import {
   parseMcpReadme,
   parseSkillMd,
   parseSource,
+  packageKey,
+  pickSkillFiles,
   safeInstallCommand,
 } from '../services/githubImport.service.js';
 
@@ -172,6 +174,15 @@ describe('GitHub import: skills (AC-I2, I3, I4)', () => {
     expect(await prisma.aiSkill.count()).toBe(2);
   });
 
+  it('skips a skill whose content is identical to one already listed, even under another name', async () => {
+    const body = SKILL('shared-skill');
+    await run('https://github.com/acme/skills', 'skill', repoRoutes('acme', 'skills', { 'a/SKILL.md': body })).done;
+    const mirror = await run('https://github.com/fork/skills', 'skill', repoRoutes('fork', 'skills', { 'z/SKILL.md': body }, 'b'.repeat(40)), {}).done;
+    expect(mirror.created).toHaveLength(0);
+    expect(mirror.skipped[0].reason).toContain('identical content');
+    expect(await prisma.aiSkill.count()).toBe(1);
+  });
+
   it('respects the limit and reports a dry run without writing', async () => {
     const dry = await run('https://github.com/acme/skills', 'skill', repoRoutes('acme', 'skills', files), { dryRun: true }).done;
     expect(dry.dry_run).toBe(true);
@@ -187,6 +198,14 @@ describe('GitHub import: skills (AC-I2, I3, I4)', () => {
     const routes = repoRoutes('acme', 'skills', files);
     const summary = await run('https://github.com/acme/skills/tree/main/skills', 'skill', routes).done;
     expect(summary.created.map((c) => c.name).sort()).toEqual(['pdf-tools', 'xlsx-tools']);
+  });
+
+  it('puts shallow skills first and keeps only a few from a template-generated folder', () => {
+    const bulk = Array.from({ length: 60 }, (_, i) => `bulk-pack/tool-${String(i).padStart(2, '0')}-automation/SKILL.md`);
+    const picked = pickSkillFiles(['zeta/SKILL.md', ...bulk, 'alpha/SKILL.md', 'skills/deep/one/SKILL.md']);
+    expect(picked.slice(0, 2)).toEqual(['alpha/SKILL.md', 'zeta/SKILL.md']);
+    expect(picked.filter((p) => p.startsWith('bulk-pack/'))).toHaveLength(3);
+    expect(picked).toContain('skills/deep/one/SKILL.md');
   });
 
   it('parses folded descriptions and falls back to the directory name', () => {
@@ -261,6 +280,48 @@ describe('GitHub import: MCP servers (AC-I5)', () => {
     };
     const summary = await run('https://github.com/acme/awesome-mcp', 'mcp', routes).done;
     expect(summary.created.map((c) => c.name).sort()).toEqual(['mcp-one', 'mcp-two']);
+  });
+
+  it('does not list the same package twice under a new name', async () => {
+    await prisma.mcpServer.create({
+      data: { name: 'widgets', install_command: 'npx -y @acme/mcp-widgets --read-only', submitted_by: admin.user_id, is_verified: true },
+    });
+    const routes = { ...repoRoutes('acme', 'mcp-widgets', { 'README.md': README_OK }), [`${RAW}/acme/mcp-widgets/${SHA}/README.md`]: README_OK };
+    const summary = await run('https://github.com/acme/mcp-widgets', 'mcp', routes).done;
+    expect(summary.created).toHaveLength(0);
+    expect(summary.skipped[0].reason).toContain('same package as the existing listing "widgets"');
+    expect(await prisma.mcpServer.count()).toBe(1);
+  });
+
+  it('skips a hand-listed server with the same name that already points into the same repository', async () => {
+    await prisma.mcpServer.create({
+      data: { name: 'mcp-widgets', install_command: 'docker run -i --rm acme/widgets-image', repository_url: 'https://github.com/acme/mcp-widgets/tree/main', submitted_by: admin.user_id, is_verified: true },
+    });
+    const routes = { ...repoRoutes('acme', 'mcp-widgets', { 'README.md': README_OK }), [`${RAW}/acme/mcp-widgets/${SHA}/README.md`]: README_OK };
+    const summary = await run('https://github.com/acme/mcp-widgets', 'mcp', routes).done;
+    expect(summary.created).toHaveLength(0);
+    expect(summary.skipped[0].reason).toContain('same name and repository');
+    expect(await prisma.mcpServer.count()).toBe(1);
+  });
+
+  it('reads the start of a very long README instead of failing the run', async () => {
+    const long = README_OK + 'filler line\n'.repeat(30_000);
+    const routes = { ...repoRoutes('acme', 'mcp-widgets', { 'README.md': long }), [`${RAW}/acme/mcp-widgets/${SHA}/README.md`]: long };
+    const summary = await run('https://github.com/acme/mcp-widgets', 'mcp', routes).done;
+    expect(summary.failed).toHaveLength(0);
+    expect(summary.created).toHaveLength(1);
+  });
+
+  it('finds the tool list under headings with an emoji or qualifier words, and ignores unrelated sections', () => {
+    const readme = '## Requirements\n- `node` - Node.js 20\n\n## 🛠️ Available MCP Tools\n- **search_docs** - Search the docs\n- **fetch_page** - Fetch a page\n\n## License\n- `mit` - MIT\n';
+    expect(parseMcpReadme(readme).tools.map((t) => t.name)).toEqual(['search_docs', 'fetch_page']);
+  });
+
+  it('reduces install commands to a package key', () => {
+    expect(packageKey('npx -y @supabase/mcp-server-supabase@latest --read-only')).toBe('@supabase/mcp-server-supabase');
+    expect(packageKey('uvx mcp-server-git --repository /x')).toBe('mcp-server-git');
+    expect(packageKey('docker run -i --rm -e TOKEN ghcr.io/github/github-mcp-server')).toBe('ghcr.io/github/github-mcp-server');
+    expect(packageKey('npx x')).toBeNull();
   });
 
   it('allowlists install commands and classifies unknown tools as network, not harmless', () => {

@@ -45,6 +45,8 @@ Postman: [`docs/postman/ContextForge.postman_collection.json`](postman/ContextFo
 | 27 | POST | `/admin/submissions/review` | Approve or reject a server/skill; flips `is_verified` in a transaction | Admin | 200 OK | 400, 401, 403 |
 | 28 | POST | `/admin/takedown` | Emergency takedown: unverify + soft delete + audit entry | Admin | 200 OK | 400, 401, 403, 404 |
 | 29 | POST | `/admin/sync/github` | Refresh GitHub stars and contributors for listed servers | Admin | 200 OK | 401, 403 |
+| 30 | POST | `/admin/import/github` | Read skills or MCP servers from a public GitHub URL into the review queue (unverified, never auto-approved) | Admin | 200 OK, 201 Created | 400, 401, 403, 429 |
+| 31 | POST | `/admin/submissions/approve-clean` | Approve every pending imported listing the scanner did not flag, in one decision | Admin | 200 OK | 400, 401, 403 |
 
 All routes are prefixed with `/api/v1`. Any unknown route returns 404 `NOT_FOUND`.
 
@@ -69,6 +71,18 @@ Errors use the same shape with `success: false` and `error: { code, message, det
 | 429 | `RATE_LIMITED` | Over 60 req/min per IP, or 10 req/min on login, register and generate. `Retry-After` says when to retry |
 | 500 | `INTERNAL_SERVER_ERROR` | Unexpected error; production hides the message |
 
+## Importing from GitHub
+
+`POST /admin/import/github` body: `{ "url": "https://github.com/<owner>/<repo>[/tree/<ref>/<path>]" | "https://github.com/topics/<topic>", "kind": "skill" | "mcp", "limit": 1-100 (default 20), "dry_run": boolean }`.
+
+- **Sources.** A repository (every `SKILL.md` in it, optionally under a `tree` path), a topic page (the most-starred repositories for that topic, through the GitHub search API), an "awesome" list (each linked repository becomes a candidate) or a monorepo of servers (`src/<name>/README.md`).
+- **Where it reads.** Only `api.github.com` and `raw.githubusercontent.com`. Files are fetched at one pinned commit, which is stored in `source_ref`. Any other host, scheme, port or user-info in the URL is a 400 `INVALID_IMPORT_URL` before any request is made.
+- **What it stores.** Every item is created with `is_verified = false`, a pending review whose note names the source and license, and `source_url`, `source_license`, `source_ref`. Skills pass the prompt-injection scanner; a flagged skill is marked on its review.
+- **MCP servers.** The install command and tool list are read from the README. An install command is kept only if it is a plain `npx`, `uvx` or `docker run` line without shell syntax. Tool risk levels are a keyword guess and the review note says so. A server whose README gives no safe install command or no tool list is skipped and reported, not guessed.
+- **Idempotent.** Importing the same URL again creates nothing: items with the same name and source are reported as `already imported`. A name used by another listing gets the repository owner as a suffix.
+- **Quota.** Without `GITHUB_PAT` GitHub allows 60 REST calls and 10 searches per hour. When the quota runs out the response is `200` with `partial: true` and `stopped_reason`; items saved before that stay, and running it again continues.
+- **Approving.** `POST /admin/submissions/approve-clean` with `{ "item_type": "skill" | "server" }` approves the pending imports with no scanner flag and leaves the rest. It never touches a listing that was submitted by hand.
+
 ## Data model
 
 Six tables in PostgreSQL (Supabase). Primary keys are UUIDs named after the table (`user_id`, `server_id`, ...).
@@ -87,9 +101,9 @@ erDiagram
 | Table | Purpose | Key relations |
 |---|---|---|
 | `users` | Accounts and roles | parent of servers, skills, configs, reviews |
-| `mcp_servers` | MCP server listings, soft delete, GitHub metrics | `submitted_by` -> `users` (RESTRICT) |
+| `mcp_servers` | MCP server listings, soft delete, GitHub metrics, `source_*` provenance for imports | `submitted_by` -> `users` (RESTRICT) |
 | `tool_definitions` | Tools exposed by a server with risk level and JSON schema | `server_id` -> `mcp_servers` (CASCADE) |
-| `ai_skills` | SKILL.md content, compatible clients, scan flags | `submitted_by` -> `users` (RESTRICT) |
+| `ai_skills` | SKILL.md content, compatible clients, scan flags, `source_*` provenance for imports | `submitted_by` -> `users` (RESTRICT) |
 | `client_configs` | Immutable generated config snapshots | `user_id` -> `users` (SET NULL) |
 | `submission_reviews` | Review queue and audit log (approve, reject, takedown) | `reviewer_id` -> `users`; polymorphic `item_type` + `item_id` |
 

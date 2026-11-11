@@ -18,6 +18,7 @@
     "seed": "tsx prisma/seed.ts",
     "db:check": "tsx scripts/db-check.ts",
     "sync:github": "tsx scripts/sync-github.ts",
+    "import:github": "tsx scripts/import-github.ts",
     "e2e": "tsx scripts/e2e.ts",
     "dev:testdb": "tsx scripts/dev-test-db.ts"
   },

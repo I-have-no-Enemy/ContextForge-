@@ -433,3 +433,14 @@ a.row__name:hover { text-decoration: underline; text-underline-offset: 4px; }
   .toasts { right: 16px; left: 16px; bottom: 72px; max-width: none; }
   .pager { flex-wrap: wrap; justify-content: center; }
 }
+
+/* Admin: import from GitHub */
+.import { display: grid; gap: 16px; margin: 0 0 32px; padding: 20px; border: 1px solid var(--color-iron); border-radius: var(--radius-cards, 12px); }
+.import__h { margin: 0 0 4px; font-size: 20px; }
+.import__form { display: grid; gap: 16px; max-width: 720px; }
+.import__row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; }
+.import__result { display: grid; gap: 8px; font-size: 14px; }
+.import__result p { margin: 0; }
+.import__result summary { cursor: pointer; padding-block: 4px; }
+.import__list { margin: 8px 0 0; padding-left: 18px; max-height: 260px; overflow: auto; display: grid; gap: 4px; }
+@media (max-width: 599px) { .import__row { grid-template-columns: minmax(0, 1fr); } }

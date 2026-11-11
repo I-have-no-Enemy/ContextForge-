@@ -542,3 +542,22 @@
 - **การทดสอบ**: เลิก mock Prisma ทั้งหมด, 111 integration test ยิง PostgreSQL จริงใน schema `ctxforge_test` (ไม่แตะ `public`), มี test race ด้วย row lock จริง; `npm run e2e` รัน Postman 50 request / 74 assertion ผ่านหมด
 - **เอกสาร**: `docs/API.md` (29 endpoint), `docs/postman/`, `docs/DEMO.md`, `CASE_STUDY.md`, README ใหม่
 - **ผลการตรวจ**: `npm test --workspace=backend` 111/111, `tsc` backend/frontend ผ่าน, `vite build` ผ่าน, `node scripts/check-docs.mjs` ผ่าน
+
+---
+
+### Entry #019: แก้ finding จาก UX/UI audit และระบบ import จาก GitHub (branch `feat/audit-fixes-and-import`)
+- **วันที่**: `2026-11-11`
+- **ผู้ดำเนินการ**: Claude Code (แผนงาน `contextforge-import-fixes`)
+- **UX/UI audit (วัดด้วย Playwright บน production build)**
+  - Dialog มี focus trap (Tab วน 21 ครั้งไม่หลุด, Esc ปิดแล้ว focus กลับปุ่มเดิม)
+  - Footer ไม่ถูก dock มือถือทับ (footer bottom 716px <= dock top 732px); เดิมทับ 48px ซ่อนบรรทัดเปิดเผยว่าวิดีโอสร้างด้วย AI
+  - มือถือมีลิงก์ API docs ใน dock และไม่มี Sign in ซ้ำ; ปลายทางสัมผัสเล็กกว่า 24px เหลือ 0; วันที่ใช้ "11 Nov 2026"; ป้าย "runs" เปลี่ยนเป็น "exports"; cursor ของ chip เป็น pointer
+  - `/auth/me` ตอบ 401 ครั้งเดียวบน production build (ซ้ำสองครั้งเฉพาะ dev เพราะ React StrictMode)
+- **Import จาก GitHub**
+  - คอลัมน์ `source_url`, `source_license`, `source_ref` (migration `20261111000001`, ใส่ Supabase แล้ว)
+  - `githubImport.service.ts`, `POST /admin/import/github`, `POST /admin/submissions/approve-clean`, ฟอร์มใน Admin, CLI `npm run import:github`
+  - กฎที่ test ล็อกไว้: host allowlist, install_command ต้องเป็น npx/uvx/docker run ไม่มี shell syntax, ข้าม MCP ที่ไม่มี tool list, ไม่สร้างซ้ำ (ชื่อ, package, เนื้อหาเหมือนกัน), โฟลเดอร์ที่มี SKILL.md เกิน 50 ไฟล์เอาแค่ 3, หยุดแบบ partial เมื่อโควตาหมด
+  - ผลจริง: skills 59 และ servers 15 อยู่ในคิว pending (ยังไม่ publish), scanner ไม่พบ flag
+- **บั๊กที่เจอระหว่างทาง**: `safeInstallCommand` ยุบบรรทัดใหม่เป็นช่องว่างก่อนตรวจ (test จับได้); run แรกกับ topic ล้มทั้งรอบเพราะ README ยาวเกิน 100,000 ตัวอักษร (ตอนนี้ตัดแทนปฏิเสธ); import สร้างรายการซ้ำกับ seed (`memory-modelcontextprotocol`, `context7-upstash`) และสกิล `*-automation` 35 ตัวจากเทมเพลต ลบเฉพาะแถวที่ import เองและยัง pending แล้ว
+- **ผลการตรวจ**: `npm test` 156/156, `npm run e2e` Postman 55 request / 81 assertion ผ่านหมด, `tsc` และ `vite build` ผ่าน, `check-docs` ผ่าน, `db:check` 12/12
+- **ข้อจำกัด**: โควตา GitHub แบบไม่ใช้ token คือ 60 call/ชม. ตั้งตัวแปร `GITHUB_PAT` ในไฟล์ env ของโปรเจกต์เพื่อ import เพิ่ม (5,000 call/ชม.); ลำดับใน awesome-mcp-servers ไม่เรียงตามดาว

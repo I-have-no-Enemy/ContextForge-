@@ -54,8 +54,11 @@ class RateLimited extends Error {}
 
 const SEGMENT = /^[A-Za-z0-9_.-]{1,100}$/;
 const MAX_FILE_CHARS = 100_000;
+const MAX_README_CHARS = 300_000; // READMEs are cut, not rejected: only the install command and tool list are read
 const MAX_LIMIT = 100;
 const SKILLS_PER_REPO = 40;
+const BULK_DIR_SIZE = 50;
+const BULK_DIR_KEEP = 3;
 
 // ---------------------------------------------------------------- URL parsing
 
@@ -124,7 +127,7 @@ function makeClient(fetchImpl: typeof fetch, token: string | undefined, timeoutM
   }
 
   /** Raw files do not count against the REST quota. Returns null when the file does not exist. */
-  async function raw(owner: string, repo: string, ref: string, path: string): Promise<string | null> {
+  async function raw(owner: string, repo: string, ref: string, path: string, truncate = false): Promise<string | null> {
     const segs = path.split('/');
     if (segs.some((s) => s === '..' || s === '')) throw new Error('invalid path');
     const url = `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(ref)}/${segs.map(encodeURIComponent).join('/')}`;
@@ -133,6 +136,7 @@ function makeClient(fetchImpl: typeof fetch, token: string | undefined, timeoutM
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`raw.githubusercontent.com responded ${res.status}`);
     const text = await res.text();
+    if (truncate) return text.slice(0, MAX_README_CHARS);
     if (text.length > MAX_FILE_CHARS) throw new Error(`file larger than ${MAX_FILE_CHARS} characters`);
     return text;
   }
@@ -220,6 +224,14 @@ export function safeInstallCommand(cmd: string): string | null {
   return one.length <= 255 && SAFE_INSTALL.test(one) ? one : null;
 }
 
+/** The package or image an install command runs, without flags or a version tag; used to spot the same server listed twice. */
+export function packageKey(cmd: string): string | null {
+  const t = cmd.split(' ');
+  const key = t[0] === 'docker' ? t[t.length - 1] : t.slice(1).find((x) => !x.startsWith('-'));
+  const bare = key?.replace(/(?<=\w)@[\w.-]+$/, '');
+  return bare && bare.length >= 4 ? bare : null;
+}
+
 export interface ParsedReadme {
   install_command: string | null;
   env: string[];
@@ -272,7 +284,9 @@ function extractTools(readme: string): Array<{ name: string; description: string
     if (h) {
       const level = h[1].length;
       const title = h[2].trim();
-      if (/^(available |list of )?tools?( list)?\b/i.test(title) && !/toolset/i.test(title)) {
+      // "## Tools", "## 🛠️ Available MCP Tools", "### Tool reference": up to two qualifier words, then tools
+      const heading = title.replace(/^[^A-Za-z`]+/, '').replace(/[:#\s]+$/, '');
+      if (/^(?:[A-Za-z-]+ ){0,2}tools?(?: (?:list|reference|overview|available))?$/i.test(heading)) {
         inSection = true;
         sectionLevel = level;
       } else if (inSection && level <= sectionLevel) {
@@ -369,6 +383,27 @@ async function reposFor(c: Ctx, s: Source, maxRepos: number): Promise<Array<{ in
   return info ? [{ info, ref: s.ref, path: s.path }] : [];
 }
 
+/**
+ * Headline skills sit near the top of a repository, so shallow paths go first. A folder holding more than
+ * BULK_DIR_SIZE skills is generated from a template (hundreds of near-identical "x-automation" skills), so it
+ * contributes only BULK_DIR_KEEP of them and cannot crowd out the curated ones.
+ */
+export function pickSkillFiles(paths: string[]): string[] {
+  const parent = (p: string) => p.split('/').slice(0, -2).join('/');
+  const sizes = new Map<string, number>();
+  for (const p of paths) sizes.set(parent(p), (sizes.get(parent(p)) ?? 0) + 1);
+  const taken = new Map<string, number>();
+  return [...paths]
+    .sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b))
+    .filter((p) => {
+      const dir = parent(p);
+      if ((sizes.get(dir) ?? 0) <= BULK_DIR_SIZE) return true;
+      taken.set(dir, (taken.get(dir) ?? 0) + 1);
+      return taken.get(dir)! <= BULK_DIR_KEEP;
+    })
+    .slice(0, SKILLS_PER_REPO);
+}
+
 async function importSkills(c: Ctx, s: Source) {
   for (const { info, ref, path } of await reposFor(c, s, 15)) {
     if (full(c)) break;
@@ -378,9 +413,9 @@ async function importSkills(c: Ctx, s: Source) {
       continue;
     }
     const prefix = path ? `${path}/` : '';
-    const files = snap.paths
-      .filter((p) => /(^|\/)skill\.md$/i.test(p) && !/(^|\/)(node_modules|\.git)\//.test(p) && p.startsWith(prefix))
-      .slice(0, SKILLS_PER_REPO);
+    const files = pickSkillFiles(
+      snap.paths.filter((p) => /(^|\/)skill\.md$/i.test(p) && !/(^|\/)(node_modules|\.git)\//.test(p) && p.startsWith(prefix))
+    );
     if (files.length === 0) c.summary.skipped.push({ name: `${info.owner}/${info.repo}`, reason: 'no SKILL.md found' });
 
     for (const file of files) {
@@ -405,16 +440,19 @@ async function importSkills(c: Ctx, s: Source) {
 }
 
 async function freeName(
-  exists: (name: string) => Promise<{ source_url: string | null } | null>,
+  exists: (name: string) => Promise<{ source_url: string | null; repository_url?: string | null } | null>,
   base: string,
   owner: string,
-  sourceUrl: string
+  sourceUrl: string,
+  repoPath?: string
 ): Promise<{ name: string } | { skip: string }> {
   for (const candidate of [base, normalizeName(`${base}-${owner}`)]) {
     if (!candidate) continue;
     const hit = await exists(candidate);
     if (!hit) return { name: candidate };
     if (hit.source_url === sourceUrl) return { skip: 'already imported' };
+    // Same name and the existing listing already points into this repository: it is the same server.
+    if (repoPath && hit.repository_url?.toLowerCase().includes(repoPath.toLowerCase())) return { skip: 'already listed (same name and repository)' };
   }
   return { skip: 'name already used by another listing' };
 }
@@ -423,6 +461,12 @@ async function saveSkill(c: Ctx, info: RepoInfo, sha: string, sourceUrl: string,
   const base = normalizeName(parsed.name);
   if (!base) {
     c.summary.skipped.push({ name: label, reason: 'skill name is empty or shorter than 3 characters' });
+    return;
+  }
+  // The same file mirrored in another repository is one skill, not two.
+  const same = await c.db.aiSkill.findFirst({ where: { skill_content: content, is_deleted: false }, select: { name: true, source_url: true } });
+  if (same && same.source_url !== sourceUrl) {
+    c.summary.skipped.push({ name: base, reason: `identical content to the existing listing "${same.name}"` });
     return;
   }
   const picked = await freeName((name) => c.db.aiSkill.findUnique({ where: { name }, select: { source_url: true } }), base, info.owner.toLowerCase(), sourceUrl);
@@ -496,11 +540,20 @@ async function importMcp(c: Ctx, s: Source) {
 }
 
 async function* mcpCandidates(c: Ctx, s: Source): AsyncGenerator<McpCandidate> {
-  const readmeOf = async (info: RepoInfo, ref: string, path = 'README.md') => (await c.client.raw(info.owner, info.repo, ref, path)) ?? '';
+  const readmeOf = async (info: RepoInfo, ref: string, path = 'README.md') => {
+    try {
+      return (await c.client.raw(info.owner, info.repo, ref, path, true)) ?? '';
+    } catch (err) {
+      if (err instanceof RateLimited) throw err;
+      c.summary.failed.push({ name: `${info.owner}/${info.repo}`, reason: `README unreadable: ${err instanceof Error ? err.message : String(err)}` });
+      return null;
+    }
+  };
 
   if (s.type === 'topic') {
     for (const info of await c.client.searchTopic(s.topic, Math.min(50, c.limit * 3))) {
-      yield { info, readme: await readmeOf(info, info.default_branch), sourceUrl: info.html_url, sourceRef: info.default_branch, nameHint: info.repo };
+      const readme = await readmeOf(info, info.default_branch);
+      if (readme !== null) yield { info, readme, sourceUrl: info.html_url, sourceRef: info.default_branch, nameHint: info.repo };
     }
     return;
   }
@@ -510,7 +563,7 @@ async function* mcpCandidates(c: Ctx, s: Source): AsyncGenerator<McpCandidate> {
 
   // An "awesome" list: its README links to many repositories; each linked repo becomes a candidate.
   if (/awesome/i.test(info.repo)) {
-    const list = await readmeOf(info, info.default_branch);
+    const list = (await readmeOf(info, info.default_branch)) ?? '';
     const seen = new Set<string>([`${info.owner}/${info.repo}`.toLowerCase()]);
     for (const m of list.matchAll(/\]\(https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?\)/g)) {
       const key = `${m[1]}/${m[2]}`.toLowerCase();
@@ -519,7 +572,8 @@ async function* mcpCandidates(c: Ctx, s: Source): AsyncGenerator<McpCandidate> {
       if (seen.size > c.limit * 4) break;
       const cand = await c.client.repoInfo(m[1], m[2]);
       if (!cand) continue;
-      yield { info: cand, readme: await readmeOf(cand, cand.default_branch), sourceUrl: cand.html_url, sourceRef: cand.default_branch, nameHint: cand.repo };
+      const readme = await readmeOf(cand, cand.default_branch);
+      if (readme !== null) yield { info: cand, readme, sourceUrl: cand.html_url, sourceRef: cand.default_branch, nameHint: cand.repo };
     }
     return;
   }
@@ -530,11 +584,13 @@ async function* mcpCandidates(c: Ctx, s: Source): AsyncGenerator<McpCandidate> {
   const dirs = snap.paths.map((p) => p.match(/^((?:src\/)[^/]+)\/README\.md$/)?.[1]).filter((d): d is string => !!d);
   if (dirs.length >= 3) {
     for (const dir of dirs) {
-      yield { info, readme: await readmeOf(info, snap.sha, `${dir}/README.md`), sourceUrl: `${info.html_url}/tree/${snap.sha}/${dir}`.slice(0, 512), sourceRef: snap.sha, nameHint: dir.split('/')[1] };
+      const readme = await readmeOf(info, snap.sha, `${dir}/README.md`);
+      if (readme !== null) yield { info, readme, sourceUrl: `${info.html_url}/tree/${snap.sha}/${dir}`.slice(0, 512), sourceRef: snap.sha, nameHint: dir.split('/')[1] };
     }
     return;
   }
-  yield { info, readme: await readmeOf(info, snap.sha), sourceUrl: info.html_url, sourceRef: snap.sha, nameHint: info.repo };
+  const readme = await readmeOf(info, snap.sha);
+  if (readme !== null) yield { info, readme, sourceUrl: info.html_url, sourceRef: snap.sha, nameHint: info.repo };
 }
 
 async function saveMcp(c: Ctx, cand: McpCandidate) {
@@ -548,12 +604,28 @@ async function saveMcp(c: Ctx, cand: McpCandidate) {
     c.summary.skipped.push({ name: cand.nameHint, reason: 'no tool list found in the README, so the risk level would be a guess' });
     return;
   }
+  // The same package under another name is the same server: skip it rather than list it twice.
+  const key = packageKey(parsed.install_command);
+  if (key) {
+    const same = await c.db.mcpServer.findMany({ where: { is_deleted: false, install_command: { contains: key } }, select: { name: true, source_url: true }, take: 5 });
+    const other = same.find((r) => r.source_url !== cand.sourceUrl);
+    if (other) {
+      c.summary.skipped.push({ name: cand.nameHint, reason: `same package as the existing listing "${other.name}"` });
+      return;
+    }
+  }
   const base = normalizeName(cand.nameHint);
   if (!base) {
     c.summary.skipped.push({ name: cand.nameHint, reason: 'server name is empty or shorter than 3 characters' });
     return;
   }
-  const picked = await freeName((name) => c.db.mcpServer.findUnique({ where: { name }, select: { source_url: true } }), base, info.owner.toLowerCase(), cand.sourceUrl);
+  const picked = await freeName(
+    (name) => c.db.mcpServer.findUnique({ where: { name }, select: { source_url: true, repository_url: true } }),
+    base,
+    info.owner.toLowerCase(),
+    cand.sourceUrl,
+    `github.com/${info.owner}/${info.repo}`
+  );
   if ('skip' in picked) {
     c.summary.skipped.push({ name: base, reason: picked.skip });
     return;

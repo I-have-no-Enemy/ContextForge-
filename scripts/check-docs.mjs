@@ -10,13 +10,13 @@ const check = (ok, msg) => (ok ? console.log(`ok   ${msg}`) : failures.push(msg)
 
 // docs/API.md lists every route in the Core Endpoints table
 const rows = read('docs/API.md').split('\n').filter((l) => /^\| \d+ \| (GET|POST|PUT|PATCH|DELETE) \|/.test(l));
-check(rows.length >= 29, `docs/API.md has ${rows.length} endpoint rows (>= 29)`);
+check(rows.length >= 31, `docs/API.md has ${rows.length} endpoint rows (>= 31)`);
 
 // Postman files parse and the collection has requests
 const collection = JSON.parse(read('docs/postman/ContextForge.postman_collection.json'));
 JSON.parse(read('docs/postman/local.postman_environment.json'));
 const requests = collection.item.flatMap((f) => f.item ?? []);
-check(requests.length >= 40, `Postman collection has ${requests.length} requests (>= 40)`);
+check(requests.length >= 45, `Postman collection has ${requests.length} requests (>= 45)`);
 
 // No demo credentials shipped in the UI
 check(!/Fill (Developer|Admin)|Password123!/.test(read('frontend/src/components/AuthDialog.tsx')), 'AuthDialog has no demo credentials');
