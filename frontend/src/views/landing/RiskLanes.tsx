@@ -4,6 +4,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import * as api from '../../services/api';
 import type { McpServer } from '../../services/api';
 import { href } from '../../lib/router';
+import { browseMemory } from '../../lib/browseMemory';
 import { RISK_LABEL, RISK_MEANING, RISK_ORDER } from '../../lib/configPreview';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -32,12 +33,15 @@ interface RiskLanesProps {
  */
 export function RiskLanes({ serverTotal, skillTotal, onOpen }: RiskLanesProps) {
   const root = useRef<HTMLElement>(null);
-  const [servers, setServers] = useState<McpServer[]>([]);
+  const [servers, setServers] = useState<McpServer[]>(browseMemory.laneServers ?? []);
 
   useEffect(() => {
     api
       .listServers({ limit: 100 })
-      .then((r) => setServers(r.data))
+      .then((r) => {
+        browseMemory.laneServers = r.data;
+        setServers(r.data);
+      })
       .catch(() => setServers([]));
   }, []);
 

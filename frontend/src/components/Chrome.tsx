@@ -5,6 +5,7 @@ import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
 import { useCart } from '../lib/cart';
 import { useTheme } from '../lib/theme';
+import { resetBrowse } from '../lib/browseMemory';
 import { StatusBadge } from './ui/badge';
 import { BookOpen, Gavel, House, Moon, ShoppingBagOpen, Sun, UserCircle } from './icons';
 
@@ -28,9 +29,9 @@ export function Topbar({ route }: { route: Route }) {
       .catch(() => setHealth('down'));
   }, []);
 
-  const link = (to: string, label: string, active: boolean) => (
+  const link = (to: string, label: string, active: boolean, onClick?: () => void) => (
     <li>
-      <a className="glass-btn" href={to} aria-current={active ? 'page' : undefined}>
+      <a className="glass-btn" href={to} aria-current={active ? 'page' : undefined} onClick={onClick}>
         {label}
       </a>
     </li>
@@ -39,11 +40,11 @@ export function Topbar({ route }: { route: Route }) {
   return (
     <header className="topbar pg">
       <nav className="topbar__inner glass glass--pill" aria-label="Primary">
-        <a className="wordmark" href={href.browse()}>
+        <a className="wordmark" href={href.browse()} onClick={resetBrowse}>
           ContextForge <i>/ registry</i>
         </a>
         <ul className="topbar__links">
-          {link(href.browse(), 'Browse', ['browse', 'server', 'skill'].includes(route.name))}
+          {link(href.browse(), 'Browse', ['browse', 'server', 'skill'].includes(route.name), resetBrowse)}
           {user && link(href.workspace(), 'Workspace', route.name === 'workspace')}
           {user?.role === 'admin' && link(href.admin(), 'Admin', route.name === 'admin')}
           <li>
@@ -98,7 +99,7 @@ export function Dock({ route }: { route: Route }) {
   const cart = useCart();
   return (
     <nav className="dock glass glass--pill glass--strong" aria-label="Quick navigation">
-      <a className="glass-btn" href={href.browse()} aria-current={['browse', 'server', 'skill'].includes(route.name) ? 'page' : undefined}>
+      <a className="glass-btn" href={href.browse()} onClick={resetBrowse} aria-current={['browse', 'server', 'skill'].includes(route.name) ? 'page' : undefined}>
         <House size={22} aria-hidden="true" />
         Browse
       </a>

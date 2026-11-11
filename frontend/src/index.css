@@ -463,3 +463,8 @@ a.row__name:hover { text-decoration: underline; text-underline-offset: 4px; }
 .cf-card button, .cf-card a:not(.cf-card__link) { position: relative; z-index: 1; }
 .cf-card__link:focus-visible { outline: none; }
 .cf-card:has(.cf-card__link:focus-visible) { outline: 2px solid var(--color-chalk); outline-offset: 3px; }
+
+/* While a dialog is open the page behind it does not scroll; the dialog body scrolls instead. */
+html.is-scroll-locked { overflow: hidden; scrollbar-gutter: stable; }
+.cf-dialog-backdrop { overscroll-behavior: contain; }
+.cf-dialog__body { overscroll-behavior: contain; }

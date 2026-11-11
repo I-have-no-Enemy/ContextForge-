@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { RefreshCw } from '../components/icons';
 import * as api from '../services/api';
 import type { AiSkill, McpServer, Pagination } from '../services/api';
 import { href } from '../lib/router';
+import { browseMemory } from '../lib/browseMemory';
+import { scrollPageTo } from '../lib/smoothScroll';
 import { CLIENTS, useCart } from '../lib/cart';
 import { Button } from '../components/ui/button';
 import { Tag } from '../components/ui/badge';
@@ -21,19 +23,22 @@ const toolLevels = (s: McpServer): RiskLevel[] => (s.tools ?? []).map((t) => t.r
 
 export function BrowseView() {
   const cart = useCart();
-  const [tab, setTab] = useState<'servers' | 'skills'>('servers');
-  const [search, setSearch] = useState('');
-  const [client, setClient] = useState('all');
-  const [page, setPage] = useState({ servers: 1, skills: 1 });
+  // Coming back from a detail page: the tab, search and page the user had, and the lists they were looking at.
+  const [tab, setTab] = useState<'servers' | 'skills'>(browseMemory.ui?.tab ?? 'servers');
+  const [search, setSearch] = useState(browseMemory.ui?.search ?? '');
+  const [client, setClient] = useState(browseMemory.ui?.client ?? 'all');
+  const [page, setPage] = useState(browseMemory.ui?.page ?? { servers: 1, skills: 1 });
 
-  const [servers, setServers] = useState<McpServer[]>([]);
-  const [skills, setSkills] = useState<AiSkill[]>([]);
-  const [meta, setMeta] = useState<{ servers?: Pagination; skills?: Pagination }>({});
-  const [loading, setLoading] = useState(true);
+  const [servers, setServers] = useState<McpServer[]>(browseMemory.lists?.servers ?? []);
+  const [skills, setSkills] = useState<AiSkill[]>(browseMemory.lists?.skills ?? []);
+  const [meta, setMeta] = useState<{ servers?: Pagination; skills?: Pagination }>(browseMemory.lists?.meta ?? {});
+  const [loading, setLoading] = useState(!browseMemory.lists);
+  // The first refresh after a return updates quietly: swapping the cards for a skeleton would move the page.
+  const seeded = useRef(Boolean(browseMemory.lists));
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!seeded.current) setLoading(true);
     setError(null);
     try {
       const [s, k] = await Promise.all([
@@ -43,9 +48,11 @@ export function BrowseView() {
       setServers(s.data);
       setSkills(k.data);
       setMeta({ servers: s.pagination, skills: k.pagination });
+      browseMemory.lists = { servers: s.data, skills: k.data, meta: { servers: s.pagination, skills: k.pagination } };
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registry API unreachable.');
     } finally {
+      seeded.current = false;
       setLoading(false);
     }
   }, [search, client, page]);
@@ -56,10 +63,56 @@ export function BrowseView() {
     return () => window.clearTimeout(t);
   }, [load]);
 
-  // A new query starts from page 1.
+  // A new query starts from page 1 (but not the first run, which would undo a restored page).
+  const firstQuery = useRef(true);
   useEffect(() => {
+    if (firstQuery.current) {
+      firstQuery.current = false;
+      return;
+    }
     setPage({ servers: 1, skills: 1 });
   }, [search, client]);
+
+  useEffect(() => {
+    browseMemory.ui = { tab, search, client, page };
+  }, [tab, search, client, page]);
+
+  // Remember where the page is scrolled to: on every scroll, and at the moment a link is followed.
+  useEffect(() => {
+    const save = () => {
+      // Leaving this page shrinks the document and the browser clamps the scroll position; that is not the user's place.
+      if (window.location.hash.replace(/^#\/?/, '') !== '') return;
+      browseMemory.y = window.scrollY;
+    };
+    const onClick = (e: MouseEvent) => {
+      if ((e.target as HTMLElement | null)?.closest?.('a[href^="#/"]')) save();
+    };
+    window.addEventListener('scroll', save, { passive: true });
+    document.addEventListener('click', onClick, true);
+    return () => {
+      window.removeEventListener('scroll', save);
+      document.removeEventListener('click', onClick, true);
+    };
+  }, []);
+
+  // Put the page back where it was before the user opened an item. With the lists restored the page already has
+  // its old height; the loop covers a first visit with nothing cached.
+  useLayoutEffect(() => {
+    const y = browseMemory.y;
+    if (!y) {
+      scrollPageTo(0);
+      return;
+    }
+    let frame = 0;
+    let raf = 0;
+    const restore = () => {
+      const room = document.documentElement.scrollHeight - window.innerHeight;
+      if (room >= y - 2 || frame++ > 90) scrollPageTo(Math.min(y, Math.max(0, room)));
+      else raf = requestAnimationFrame(restore);
+    };
+    restore();
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   // "/" focuses search (UX.md keyboard-first).
   useEffect(() => {

@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { X } from '../icons';
+import { lockPageScroll } from '../../lib/smoothScroll';
 
 export interface DialogProps {
   open: boolean;
@@ -58,7 +59,9 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
     };
     document.addEventListener('keydown', onKey);
     document.addEventListener('focusin', onFocusIn);
+    const unlockScroll = lockPageScroll();
     return () => {
+      unlockScroll();
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('focusin', onFocusIn);
       returnTo?.focus();
@@ -69,7 +72,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
 
   return (
     <div className="cf-dialog-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onOpenChange(false)}>
-      <div ref={ref} className="cf-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+      <div ref={ref} className="cf-dialog" data-lenis-prevent role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <div className="cf-dialog__head">
           <div>
             <h2 id={titleId} className="cf-dialog__title">
