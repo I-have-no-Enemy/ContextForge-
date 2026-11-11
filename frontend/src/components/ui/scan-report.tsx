@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { TriangleAlert } from 'lucide-react';
+import { TriangleAlert } from '../icons';
 
 export interface ScanFinding {
   code: string;

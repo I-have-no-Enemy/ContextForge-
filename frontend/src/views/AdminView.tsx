@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ExternalLink, Github, RefreshCw, ShieldOff } from 'lucide-react';
+import { ExternalLink, Github, RefreshCw, ShieldOff } from '../components/icons';
 import * as api from '../services/api';
 import type { AiSkill, McpServer, Metrics, Submission } from '../services/api';
 import { href } from '../lib/router';

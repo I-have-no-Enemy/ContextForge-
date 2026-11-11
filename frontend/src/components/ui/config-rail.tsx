@@ -1,4 +1,4 @@
-import { ArrowUpRight, TriangleAlert, X } from 'lucide-react';
+import { ArrowUpRight, TriangleAlert, X } from '../icons';
 import { Button } from './button';
 import { EmptyState } from './empty-state';
 

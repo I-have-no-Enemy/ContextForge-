@@ -1,13 +1,13 @@
 import * as React from 'react';
-import type { LucideIcon } from 'lucide-react';
+import type { Icon } from '../icons';
 import { cn } from '../../lib/utils';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   /** primary: the one white pill per view. ghost: outlined secondary. quiet: underlined text. */
   variant?: 'primary' | 'ghost' | 'quiet';
   size?: 'md' | 'sm';
-  icon?: LucideIcon;
-  trailingIcon?: LucideIcon;
+  icon?: Icon;
+  trailingIcon?: Icon;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(

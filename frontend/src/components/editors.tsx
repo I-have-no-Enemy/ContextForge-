@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from './icons';
 import * as api from '../services/api';
 import type { AiSkill, McpServer, RiskLevel, ScanResult } from '../services/api';
 import { ApiError } from '../services/api';

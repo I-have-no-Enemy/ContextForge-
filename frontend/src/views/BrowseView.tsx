@@ -1,12 +1,14 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowUpRight, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { RefreshCw } from '../components/icons';
 import * as api from '../services/api';
 import type { AiSkill, McpServer, Pagination } from '../services/api';
 import { href } from '../lib/router';
 import { CLIENTS, useCart } from '../lib/cart';
 import { Button } from '../components/ui/button';
 import { Tag } from '../components/ui/badge';
-import { RiskMeter, RISK_ORDER, maxRisk, type RiskLevel } from '../components/ui/risk-meter';
+import { maxRisk, type RiskLevel } from '../components/ui/risk-meter';
+import { ComposerHero } from './landing/ComposerHero';
+import { RiskLanes } from './landing/RiskLanes';
 import { Tabs } from '../components/ui/tabs';
 import { SearchField } from '../components/ui/search-field';
 import { RegistryCard } from '../components/ui/registry-card';
@@ -16,58 +18,6 @@ import { Pager } from '../components/forms';
 
 const PAGE_SIZE = 12;
 const toolLevels = (s: McpServer): RiskLevel[] => (s.tools ?? []).map((t) => t.risk_level);
-
-/** Break long snake_case tool names only at underscores. */
-function breakable(name: string) {
-  const parts = name.split('_');
-  return parts.map((p, i) => (
-    <React.Fragment key={i}>
-      {p}
-      {i < parts.length - 1 && (
-        <>
-          _<wbr />
-        </>
-      )}
-    </React.Fragment>
-  ));
-}
-
-function RiskField({ servers }: { servers: McpServer[] }) {
-  const total = servers.reduce((n, s) => n + (s.tools?.length ?? 0), 0);
-  return (
-    <figure className="risk-field" aria-label="Every listed tool grouped by risk level">
-      <div className="risk-field__h">
-        <span>Tool reach</span>
-        <span>
-          {total} tools · {servers.length} servers
-        </span>
-      </div>
-      <div className="risk-field__cols">
-        {RISK_ORDER.map((level) => {
-          const cells = servers.flatMap((s) =>
-            (s.tools ?? [])
-              .filter((t) => t.risk_level === level)
-              .map((t) => (
-                <a key={`${s.id}-${t.name}`} className="risk-field__tool" href={href.server(s.id)}>
-                  <b>{breakable(t.name)}</b>
-                  <span>{s.name}</span>
-                </a>
-              ))
-          );
-          return (
-            <div key={level} className="risk-field__col">
-              <div className="risk-field__col-h">
-                <RiskMeter level={level} compact />
-              </div>
-              {cells.length ? cells : <span className="risk-field__none">none listed</span>}
-            </div>
-          );
-        })}
-      </div>
-      <figcaption className="risk-field__f">Left to right: what a tool can touch on the host.</figcaption>
-    </figure>
-  );
-}
 
 export function BrowseView() {
   const cart = useCart();
@@ -167,29 +117,8 @@ export function BrowseView() {
 
   return (
     <>
-      <div className="pg">
-        <header className="hero">
-          <div>
-            <div className="eyebrow">MCP servers + SKILL.md packs</div>
-            <h1>
-              Know what a tool can touch <span>before your agent runs it.</span>
-            </h1>
-            <p className="hero__sub">
-              Every server is rated by the most dangerous tool it exposes. Every skill is scanned for prompt injection.
-              Pick what you trust and export one config for Claude Desktop, Cursor, Cline or Antigravity. No account
-              needed.
-            </p>
-            <Button
-              variant="primary"
-              trailingIcon={ArrowUpRight}
-              onClick={() => document.getElementById('browse')?.scrollIntoView({ behavior: 'smooth' })}
-            >
-              Browse registry
-            </Button>
-          </div>
-          <RiskField servers={servers} />
-        </header>
-      </div>
+      <ComposerHero />
+      <RiskLanes />
 
       <section className="section pg" id="browse" aria-labelledby="browse-h">
         <div className="sec-h">

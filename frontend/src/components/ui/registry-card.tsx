@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, FileText, Plus, SquareTerminal } from 'lucide-react';
+import { Check, Copy, FileText, Plus, SquareTerminal } from '../icons';
 import { cn } from '../../lib/utils';
 import { Button } from './button';
 import { StatusBadge, Tag } from './badge';

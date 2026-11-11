@@ -3,12 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ContextForge — MCP server and skill registry</title>
+    <title>ContextForge · MCP server and skill registry</title>
+    <meta name="theme-color" content="#16181d" />
     <meta name="description" content="Check what an MCP server or AI skill can reach before your agent runs it, then export one config for your client." />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;700&family=IBM+Plex+Mono:wght@400&display=swap" />
+    <script>
+      // Theme before first paint: saved choice, else the system setting (dark by default).
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('cf-theme'); } catch (e) {}
+        if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
   </head>
   <body class="cf-canvas">
     <div id="root"></div>

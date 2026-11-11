@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Download, Eye, Plus, RefreshCw } from 'lucide-react';
+import { Download, Eye, Plus, RefreshCw } from '../components/icons';
 import * as api from '../services/api';
 import type { AiSkill, GeneratedConfig, McpServer, Pagination } from '../services/api';
 import { href, navigate } from '../lib/router';

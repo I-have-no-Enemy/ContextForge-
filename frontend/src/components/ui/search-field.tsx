@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { Search } from 'lucide-react';
+import { Search } from '../icons';
 
 export interface SearchFieldProps {
   value: string;

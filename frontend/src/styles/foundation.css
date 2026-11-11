@@ -1,0 +1,207 @@
+/* ContextForge foundations (contextforge-liquid-ui, 2026-11-11).
+   Tier 1 primitives (OKLCH) -> tier 2 semantic (dark + light) -> legacy bridge for older CSS.
+   Product CSS uses the semantic names; the bridge keeps pre-redesign rules themed. */
+
+@import '@fontsource-variable/bricolage-grotesque/index.css';
+@import '@fontsource/ibm-plex-sans-thai/400.css';
+@import '@fontsource/ibm-plex-sans-thai/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+/* ---------- Tier 1: primitives (no roles in names) ---------- */
+:root {
+  --ink-0: oklch(0.13 0.012 262);
+  --ink-1: oklch(0.16 0.012 262);
+  --ink-2: oklch(0.2 0.013 262);
+  --ink-3: oklch(0.26 0.014 262);
+  --ink-4: oklch(0.36 0.014 262);
+  --ink-6: oklch(0.55 0.012 262);
+  --ink-7: oklch(0.72 0.01 262);
+  --ink-8: oklch(0.84 0.008 262);
+  --ink-9: oklch(0.94 0.005 262);
+  --ink-10: oklch(0.975 0.004 90);
+  --ink-11: oklch(0.99 0.002 90);
+  --lime-5: oklch(0.9 0.2 128);
+  --lime-7: oklch(0.5 0.15 135);
+  --teal-5: oklch(0.8 0.12 165);
+  --teal-7: oklch(0.48 0.1 170);
+  --sky-5: oklch(0.8 0.11 235);
+  --sky-7: oklch(0.48 0.13 245);
+  --amber-5: oklch(0.84 0.14 80);
+  --amber-7: oklch(0.52 0.13 65);
+  --red-5: oklch(0.7 0.19 25);
+  --red-7: oklch(0.5 0.19 27);
+
+  --font-display: 'Bricolage Grotesque Variable', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans Thai', 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', monospace;
+
+  /* fluid type: 320px -> 1920px */
+  --step--1: clamp(0.8rem, 0.78rem + 0.1vw, 0.875rem);
+  --step-0: clamp(0.95rem, 0.92rem + 0.15vw, 1.0625rem);
+  --step-1: clamp(1.1rem, 1.04rem + 0.3vw, 1.3rem);
+  --step-2: clamp(1.35rem, 1.2rem + 0.6vw, 1.75rem);
+  --step-3: clamp(1.75rem, 1.4rem + 1.5vw, 2.75rem);
+  --step-4: clamp(2.25rem, 1.6rem + 2.8vw, 4.25rem);
+  --step-5: clamp(2.75rem, 1.7rem + 4.6vw, 6.75rem);
+
+  /* fluid space */
+  --gutter: clamp(16px, 4vw, 72px);
+  --space-s: clamp(12px, 1vw, 16px);
+  --space-m: clamp(20px, 2vw, 32px);
+  --space-l: clamp(32px, 4vw, 64px);
+  --space-xl: clamp(56px, 8vw, 136px);
+
+  /* radius: concentric ladder (outer = inner + padding) */
+  --r-xs: 8px;
+  --r-s: 12px;
+  --r-m: 18px;
+  --r-l: 26px;
+  --r-xl: 34px;
+  --r-pill: 999px;
+
+  /* motion (motion.md) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-press: 120ms;
+  --dur-fast: 180ms;
+  --dur-base: 260ms;
+  --dur-slow: 480ms;
+}
+
+/* ---------- Tier 2: semantic, dark (default) ---------- */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: var(--ink-1);
+  --bg-sunken: var(--ink-0);
+  --surface: var(--ink-2);
+  --surface-raised: var(--ink-3);
+  --line: oklch(1 0 0 / 0.09);
+  --line-strong: oklch(1 0 0 / 0.2);
+  --text: var(--ink-9);
+  --text-strong: var(--ink-11);
+  --text-muted: var(--ink-7);
+  --text-soft: var(--ink-8);
+  --accent: var(--lime-5);
+  --accent-ink: var(--ink-0);
+  --focus: var(--lime-5);
+  --risk-read_only: var(--teal-5);
+  --risk-network: var(--sky-5);
+  --risk-filesystem: var(--amber-5);
+  --risk-destructive: var(--red-5);
+
+  --glass-fill: oklch(0.24 0.012 262 / 0.48);
+  --glass-fill-strong: oklch(0.22 0.012 262 / 0.72);
+  --glass-edge: oklch(1 0 0 / 0.16);
+  --glass-highlight: oklch(1 0 0 / 0.28);
+  --glass-shadow: 0 18px 48px -18px oklch(0 0 0 / 0.65);
+  --glass-solid: var(--ink-2);
+  --scrim: oklch(0.13 0.012 262 / 0.72);
+}
+
+/* ---------- Tier 2: semantic, light ---------- */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: var(--ink-10);
+  --bg-sunken: oklch(0.955 0.004 90);
+  --surface: var(--ink-11);
+  --surface-raised: oklch(1 0 0);
+  --line: oklch(0.2 0.01 262 / 0.1);
+  --line-strong: oklch(0.2 0.01 262 / 0.24);
+  --text: var(--ink-2);
+  --text-strong: var(--ink-0);
+  --text-muted: oklch(0.45 0.012 262);
+  --text-soft: var(--ink-3);
+  --accent: var(--lime-7);
+  --accent-ink: var(--ink-11);
+  --focus: var(--lime-7);
+  --risk-read_only: var(--teal-7);
+  --risk-network: var(--sky-7);
+  --risk-filesystem: var(--amber-7);
+  --risk-destructive: var(--red-7);
+
+  --glass-fill: oklch(1 0 0 / 0.55);
+  --glass-fill-strong: oklch(1 0 0 / 0.78);
+  --glass-edge: oklch(1 0 0 / 0.7);
+  --glass-highlight: oklch(1 0 0 / 0.9);
+  --glass-shadow: 0 18px 48px -20px oklch(0.2 0.02 262 / 0.35);
+  --glass-solid: var(--ink-11);
+  --scrim: oklch(0.2 0.01 262 / 0.4);
+}
+
+/* ---------- Legacy bridge: pre-redesign rules follow the theme ---------- */
+:root {
+  --color-obsidian: var(--bg);
+  --color-carbon: var(--bg-sunken);
+  --color-chalk: var(--text);
+  --color-signal-white: var(--text-strong);
+  --color-smoke: var(--text-muted);
+  --color-ash: var(--text-soft);
+  --color-graphite: var(--line);
+  --color-iron: var(--line-strong);
+  --color-card-slate: var(--line-strong);
+  --color-compass-gold: var(--accent);
+  --color-pulse-green: var(--accent);
+  --color-badge-surface: var(--surface);
+  --font-aeonik: var(--font-body);
+  --font-input: var(--font-mono);
+  --page-max-width: 1680px;
+  --text-display: var(--step-5);
+  --leading-display: 0.98;
+  --tracking-display: -0.035em;
+  --text-heading-lg: var(--step-4);
+  --leading-heading-lg: 1.02;
+  --tracking-heading-lg: -0.03em;
+  --text-heading: var(--step-3);
+  --text-heading-sm: var(--step-2);
+  --radius-buttons: var(--r-pill);
+  --radius-cards: var(--r-l);
+  --radius-lg: var(--r-m);
+  --radius-md: var(--r-s);
+  --radius-tags: var(--r-xs);
+}
+
+/* ---------- Base ---------- */
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+body.cf-canvas {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.55;
+  transition: background-color var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
+}
+.cf-canvas h1,
+.cf-canvas h2,
+.cf-canvas h3,
+.cf-card__name,
+.cf-empty__h,
+.cf-dialog__title {
+  font-family: var(--font-display);
+  font-variation-settings: 'wdth' 92;
+  line-height: 1.05;
+}
+:lang(th) body,
+.cf-canvas [lang='th'] {
+  line-height: 1.7;
+}
+.cf-canvas :focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* Fluid page container: uses the screen instead of a fixed 1200px column */
+.pg {
+  width: min(100% - 2 * var(--gutter), var(--page-max-width));
+  max-width: none;
+  margin-inline: auto;
+  padding: 0;
+}

@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from './icons';
 import type { LatestReview, Pagination } from '../services/api';
 import { Button } from './ui/button';
 import { StatusBadge } from './ui/badge';

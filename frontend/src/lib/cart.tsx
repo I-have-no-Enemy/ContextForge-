@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
-import { Check, Copy, Download } from 'lucide-react';
+import { Check, Copy, Download } from '../components/icons';
 import * as api from '../services/api';
 import type { ClientId, GeneratedConfig } from '../services/api';
 import type { CartItem, ClientOption } from '../components/ui/config-rail';

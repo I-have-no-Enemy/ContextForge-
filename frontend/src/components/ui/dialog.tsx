@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { X } from 'lucide-react';
+import { X } from '../icons';
 
 export interface DialogProps {
   open: boolean;

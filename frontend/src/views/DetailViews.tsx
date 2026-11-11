@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, Check, ExternalLink, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, ExternalLink, Pencil, Plus, Trash2 } from '../components/icons';
 import * as api from '../services/api';
 import type { AiSkill, McpServer } from '../services/api';
 import { href, navigate } from '../lib/router';

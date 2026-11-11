@@ -1,13 +1,13 @@
-import { Component, useEffect, useState, type ReactNode } from 'react';
-import { fetchHealth } from './services/api';
+import { Component, type ReactNode } from 'react';
 import { href, navigate, useRoute, type Route } from './lib/router';
 import { SessionProvider, useSession } from './lib/session';
-import { ToastProvider, useToast } from './lib/toast';
+import { ToastProvider } from './lib/toast';
 import { CartProvider, clientLabel, useCart } from './lib/cart';
 import { Button } from './components/ui/button';
-import { StatusBadge } from './components/ui/badge';
 import { EmptyState } from './components/ui/empty-state';
 import { AuthDialog } from './components/AuthDialog';
+import { Dock, Topbar } from './components/Chrome';
+import { useSmoothScroll } from './lib/smoothScroll';
 import { BrowseView } from './views/BrowseView';
 import { ServerDetailView, SkillDetailView } from './views/DetailViews';
 import { WorkspaceView } from './views/WorkspaceView';
@@ -71,69 +71,6 @@ function Page({ route }: { route: Route }) {
   }
 }
 
-function Nav({ route }: { route: Route }) {
-  const { user, logout, requestSignIn } = useSession();
-  const toast = useToast();
-  const [health, setHealth] = useState<'healthy' | 'down' | null>(null);
-
-  useEffect(() => {
-    fetchHealth()
-      .then((h) => setHealth(h.status === 'healthy' ? 'healthy' : 'down'))
-      .catch(() => setHealth('down'));
-  }, []);
-
-  const link = (to: string, label: string, active: boolean) => (
-    <li>
-      <a href={to} aria-current={active ? 'page' : undefined}>
-        {label}
-      </a>
-    </li>
-  );
-
-  return (
-    <nav className="site-nav" aria-label="Primary">
-      <a className="wordmark" href={href.browse()}>
-        ContextForge <i>/ registry</i>
-      </a>
-      <ul className="site-nav__links">
-        {link(href.browse(), 'Browse', ['browse', 'server', 'skill'].includes(route.name))}
-        {user && link(href.workspace(), 'Workspace', route.name === 'workspace')}
-        {user?.role === 'admin' && link(href.admin(), 'Admin', route.name === 'admin')}
-        <li>
-          <a href="https://github.com/I-have-no-Enemy/ContextForge-/blob/main/docs/API.md" target="_blank" rel="noreferrer">
-            API docs
-          </a>
-        </li>
-      </ul>
-      <StatusBadge tone={health === 'healthy' ? 'live' : health === 'down' ? 'alert' : 'idle'}>
-        {health === 'healthy' ? 'API · healthy' : health === 'down' ? 'API · offline' : 'API · connecting'}
-      </StatusBadge>
-      {user ? (
-        <>
-          <span className="site-nav__user">
-            <b>{user.email.split('@')[0]}</b> · {user.role}
-          </span>
-          <Button
-            variant="quiet"
-            size="sm"
-            onClick={async () => {
-              await logout();
-              toast('Signed out.');
-              if (route.name === 'workspace' || route.name === 'admin') navigate(href.browse());
-            }}
-          >
-            Sign out
-          </Button>
-        </>
-      ) : (
-        <Button variant="ghost" size="sm" onClick={requestSignIn}>
-          Sign in
-        </Button>
-      )}
-    </nav>
-  );
-}
-
 function CartBar({ route }: { route: Route }) {
   const cart = useCart();
   if (!cart.items.length) return null;
@@ -158,15 +95,14 @@ function CartBar({ route }: { route: Route }) {
 
 function Shell() {
   const route = useRoute();
+  useSmoothScroll();
   return (
     <>
       {/* A button, not href="#main": the hash is the router. */}
       <button type="button" className="skip-link" onClick={() => document.getElementById('main')?.focus()}>
         Skip to content
       </button>
-      <div className="pg">
-        <Nav route={route} />
-      </div>
+      <Topbar route={route} />
       <main id="main" tabIndex={-1}>
         <PageBoundary resetKey={JSON.stringify(route)}>
           <Page route={route} />
@@ -177,6 +113,7 @@ function Shell() {
         <span>Risk levels: read_only · network · filesystem · destructive</span>
       </footer>
       <CartBar route={route} />
+      <Dock route={route} />
       <AuthDialog />
     </>
   );

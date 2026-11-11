@@ -1,0 +1,181 @@
+/* Responsive layout for every route: fluid sections, auto-fill grids, content-layer surfaces. */
+
+.section {
+  padding-block: var(--space-xl);
+  border-top: 1px solid var(--line);
+}
+.sec-h {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-m);
+  margin-bottom: var(--space-l);
+}
+.sec-h h2 {
+  font-size: var(--step-4);
+  letter-spacing: -0.03em;
+}
+.sec-h p {
+  font-size: var(--step-1);
+  max-width: 60ch;
+  line-height: 1.5;
+}
+
+/* Browse: catalogue + config rail */
+.browse {
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 24vw, 400px);
+  gap: var(--space-m);
+}
+.browse__grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: clamp(12px, 1.2vw, 20px);
+}
+.browse__rail {
+  top: 92px;
+}
+@media (max-width: 1099px) {
+  .browse {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .browse__rail {
+    position: static;
+  }
+}
+
+/* Content-layer cards: solid surface, no glass */
+.cf-card {
+  background: var(--surface);
+  border-color: var(--line);
+  border-radius: var(--r-l);
+  transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .cf-card:hover {
+    border-color: var(--line-strong);
+  }
+}
+.cf-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.cf-card__name {
+  font-size: var(--step-2);
+}
+.cf-cmd,
+.cf-code,
+.cf-scan__quote {
+  background: var(--bg-sunken);
+}
+.cf-rail,
+.panel,
+.facts,
+.tools__list,
+.rows,
+.queue,
+.metrics,
+.risk-field {
+  background: var(--surface);
+  border-color: var(--line);
+  border-radius: var(--r-l);
+}
+.cf-rail {
+  background: var(--surface);
+}
+.cf-empty {
+  border-radius: var(--r-l);
+}
+
+/* Buttons: primary is the one tinted action per view */
+.cf-btn--primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: transform var(--dur-press) var(--ease-out), filter var(--dur-fast) var(--ease-out);
+}
+.cf-btn--primary:active {
+  transform: scale(0.97);
+}
+@media (hover: hover) and (pointer: fine) {
+  .cf-btn--primary:hover {
+    background: var(--accent);
+    filter: brightness(1.08);
+  }
+}
+.cf-btn--ghost {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+@media (hover: hover) and (pointer: fine) {
+  .cf-btn--ghost:hover {
+    background: var(--text);
+    color: var(--bg);
+    border-color: var(--text);
+  }
+}
+.cf-btn {
+  min-height: 40px;
+}
+
+/* Inputs follow the theme */
+.cf-input,
+.cf-select,
+.panel__note textarea {
+  background: var(--bg-sunken);
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+/* Admin metrics: auto-fit tiles */
+.metrics {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+}
+.metric {
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.metric__value {
+  font-family: var(--font-display);
+  font-size: var(--step-4);
+}
+
+/* Detail pages */
+.detail__title h1 {
+  font-size: var(--step-4);
+}
+.detail__grid {
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.3fr);
+}
+@media (max-width: 1023px) {
+  .detail__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Risk colours: always paired with the level name (never colour alone) */
+.risk-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.risk-dot[data-level='read_only'] { background: var(--risk-read_only); }
+.risk-dot[data-level='network'] { background: var(--risk-network); }
+.risk-dot[data-level='filesystem'] { background: var(--risk-filesystem); }
+.risk-dot[data-level='destructive'] { background: var(--risk-destructive); }
+
+.site-foot {
+  border-top: 1px solid var(--line);
+  padding-block: var(--space-l);
+  font-size: var(--step--1);
+}
+
+/* Tiny screens: nothing may push past 320px */
+@media (max-width: 479px) {
+  .sec-h {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cf-card__body,
+  .cf-card__foot {
+    padding-inline: 18px;
+  }
+}
