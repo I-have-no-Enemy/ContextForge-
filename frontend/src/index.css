@@ -220,7 +220,8 @@ button.cf-tag:hover { color: var(--color-chalk); border-color: var(--color-smoke
 .site-nav__user { font-family: var(--font-input); font-size: 13px; color: var(--color-smoke); }
 .site-nav__user b { font-weight: 400; color: var(--color-chalk); }
 
-.hero { display: grid; grid-template-columns: 1fr 1.2fr; gap: 48px; padding: 96px 0 72px; align-items: end; }
+.hero { display: grid; grid-template-columns: 1fr 1.2fr; gap: 48px; padding: 96px 0 72px; align-items: start; }
+.hero > div:first-child { position: sticky; top: 32px; }
 .eyebrow { font-family: var(--font-input); font-size: 13px; color: var(--color-smoke); text-transform: uppercase; letter-spacing: .04em; display: flex; gap: 12px; align-items: center; margin-bottom: 32px; }
 .eyebrow::before { content: ''; width: 40px; height: 1px; background: var(--color-iron); }
 .hero h1 { font-size: var(--text-display); line-height: var(--leading-display); letter-spacing: var(--tracking-display); font-weight: 400; margin: 0 0 24px; max-width: 12ch; }
@@ -292,6 +293,7 @@ button.cf-tag:hover { color: var(--color-chalk); border-color: var(--color-smoke
 
 @media (max-width: 1023px) {
   .hero { grid-template-columns: 1fr; padding-top: 64px; }
+  .hero > div:first-child { position: static; }
   .browse { grid-template-columns: 1fr; }
   .browse__rail { position: static; scroll-margin-top: 16px; }
   .review { grid-template-columns: 1fr; }

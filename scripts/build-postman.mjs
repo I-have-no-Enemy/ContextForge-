@@ -21,6 +21,9 @@ function req(name, method, path, { token, body, tests = [], description } = {}) 
       ...(description && { description }),
     },
     event: [{ listen: 'test', script: { type: 'text/javascript', exec: tests.flat() } }],
+    // Requests without a Bearer token must be truly anonymous: the login response sets an
+    // HttpOnly session cookie that Postman would otherwise replay.
+    ...(!token && { protocolProfileBehavior: { disableCookies: true } }),
   };
   const q = path.split('?')[1];
   if (q) r.request.url.query = q.split('&').map((kv) => ({ key: kv.split('=')[0], value: kv.split('=')[1] }));

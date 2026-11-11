@@ -16,7 +16,10 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
-    "db:check": "tsx scripts/db-check.ts"
+    "db:check": "tsx scripts/db-check.ts",
+    "sync:github": "tsx scripts/sync-github.ts",
+    "e2e": "tsx scripts/e2e.ts",
+    "dev:testdb": "tsx scripts/dev-test-db.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
