@@ -244,7 +244,7 @@ button.cf-tag:hover { color: var(--color-chalk); border-color: var(--color-smoke
 
 .section { border-top: 1px solid var(--color-graphite); padding-top: 72px; padding-bottom: 96px; }
 .sec-h { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: end; margin-bottom: 40px; }
-.sec-h h2 { font-size: var(--text-heading-lg); line-height: var(--leading-heading-lg); letter-spacing: var(--tracking-heading-lg); font-weight: 400; margin: 0; }
+.sec-h h1, .sec-h h2 { font-size: var(--text-heading-lg); line-height: var(--leading-heading-lg); letter-spacing: var(--tracking-heading-lg); font-weight: 400; margin: 0; }
 .sec-h p { margin: 12px 0 0; color: var(--color-smoke); max-width: 56ch; font-size: 16px; line-height: 1.4; }
 .sec-h__idx { font-family: var(--font-input); font-size: 13px; color: var(--color-smoke); }
 
@@ -309,7 +309,7 @@ button.cf-tag:hover { color: var(--color-chalk); border-color: var(--color-smoke
   .risk-field__col { min-height: 0; }
   .risk-field__col:nth-child(2) { border-right: 0; }
   .risk-field__col:nth-child(-n+2) { border-bottom: 1px solid var(--color-graphite); }
-  .sec-h h2 { font-size: var(--text-heading); }
+  .sec-h h1, .sec-h h2 { font-size: var(--text-heading); }
   .sec-h { grid-template-columns: 1fr; }
   .browse__tools { grid-template-columns: 1fr; gap: 16px; }
   .browse__grid { grid-template-columns: 1fr; }

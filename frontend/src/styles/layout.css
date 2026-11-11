@@ -9,7 +9,7 @@
   gap: var(--space-m);
   margin-bottom: var(--space-l);
 }
-.sec-h h2 {
+.sec-h h1, .sec-h h2 {
   font-size: var(--step-4);
   letter-spacing: -0.03em;
 }

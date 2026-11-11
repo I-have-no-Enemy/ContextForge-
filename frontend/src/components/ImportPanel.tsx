@@ -114,7 +114,7 @@ export function ImportPanel({ onDone }: { onDone: () => void }) {
         <div className="import__result" role="status" aria-live="polite">
           <p>
             <b>{result.created.length}</b> {result.dry_run ? 'would be created' : 'queued for review'} · <b>{result.skipped.length}</b> skipped ·{' '}
-            <b>{result.failed.length}</b> failed · {result.api_calls} GitHub calls
+            <b>{result.failed.length}</b> failed · {result.api_calls} GitHub {result.api_calls === 1 ? "call" : "calls"}
             {result.rate_remaining !== null && ` (${result.rate_remaining} left this hour)`}
           </p>
           {result.partial && <p className="form-field__err">{result.stopped_reason}</p>}

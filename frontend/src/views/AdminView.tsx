@@ -175,7 +175,7 @@ export function AdminView() {
     <section className="section pg" aria-labelledby="admin-h">
       <div className="sec-h">
         <div>
-          <h2 id="admin-h">Governance</h2>
+          <h1 id="admin-h">Governance</h1>
           <p>Scanner hits jump the queue. Open an item to see its findings; rejecting requires a note.</p>
         </div>
         <div className="cf-row">
