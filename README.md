@@ -41,7 +41,7 @@ The seed generates account passwords into `backend/prisma/seed-accounts.local.js
 | `npm run db:check` | Connectivity and required-index check; prints no secrets |
 | `npm run seed` | Resets and seeds the schema in `DATABASE_URL` |
 | `npm run sync:github` | One-off GitHub metrics sync |
-| `npm run import:github -- <url> --kind skill\|mcp [--limit N] [--apply]` | Import from a GitHub URL; dry run unless `--apply` |
+| `npm run import:github -- <url> --kind skill\|mcp [--limit N] [--min-stars N] [--apply]` | Import from a GitHub URL; dry run unless `--apply` |
 
 Root: `node scripts/check-docs.mjs` (doc checks), `node scripts/build-postman.mjs` (regenerates the Postman files).
 

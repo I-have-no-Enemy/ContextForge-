@@ -35,6 +35,7 @@ export const importGithubSchema = z.object({
   url: z.string().trim().min(10, 'url is required').max(300, 'url is too long'),
   kind: z.enum(['skill', 'mcp'], { errorMap: () => ({ message: "kind must be either 'skill' or 'mcp'" }) }),
   limit: z.number().int().min(1).max(100).optional(),
+  min_stars: z.number().int().min(0).max(1_000_000).optional(),
   dry_run: z.boolean().optional(),
 });
 

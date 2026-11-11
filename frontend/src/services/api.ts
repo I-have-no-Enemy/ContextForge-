@@ -303,7 +303,7 @@ export const reviewSubmission = (payload: {
 export const takedown = (item_type: 'server' | 'skill', item_id: string, reason: string) =>
   send<unknown>('POST', '/admin/takedown', { item_type, item_id, reason });
 export const syncGithub = () => send<SyncSummary>('POST', '/admin/sync/github');
-export const importGithub = (payload: { url: string; kind: 'skill' | 'mcp'; limit?: number; dry_run?: boolean }) =>
+export const importGithub = (payload: { url: string; kind: 'skill' | 'mcp'; limit?: number; min_stars?: number; dry_run?: boolean }) =>
   send<ImportSummary>('POST', '/admin/import/github', payload);
 export const approveClean = (item_type: 'server' | 'skill') =>
   send<{ approved: number; left_in_queue_flagged: number }>('POST', '/admin/submissions/approve-clean', { item_type });

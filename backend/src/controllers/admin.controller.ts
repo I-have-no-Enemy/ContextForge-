@@ -274,6 +274,7 @@ export class AdminController {
         url: parsed.data.url,
         kind: parsed.data.kind,
         limit: parsed.data.limit,
+        minStars: parsed.data.min_stars,
         dryRun: parsed.data.dry_run,
         submittedBy: req.user!.user_id || req.user!.id!,
       });

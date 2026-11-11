@@ -324,6 +324,32 @@ describe('GitHub import: MCP servers (AC-I5)', () => {
     expect(packageKey('npx x')).toBeNull();
   });
 
+  describe('ranking an awesome list by stars', () => {
+    const list = [
+      '# Awesome',
+      '- [low](https://github.com/acme/mcp-low)',
+      '- [top](https://github.com/acme/mcp-top)',
+      '- [mid](https://github.com/acme/mcp-mid)',
+    ].join('\n');
+    const star = (repo: string, n: number) => ({ [`${API}/repos/acme/${repo}`]: repoJson('acme', repo, { stargazers_count: n }), [`${RAW}/acme/${repo}/main/README.md`]: README_OK.replace('@acme/mcp-widgets', `@acme/${repo}`) });
+    const routes: Record<string, Reply> = {
+      ...repoRoutes('acme', 'awesome-mcp', {}),
+      [`${RAW}/acme/awesome-mcp/main/README.md`]: list,
+      ...star('mcp-low', 5), ...star('mcp-top', 5000), ...star('mcp-mid', 400),
+    };
+
+    it('imports the most-starred repositories first, not the first ones in the list', async () => {
+      const summary = await run('https://github.com/acme/awesome-mcp', 'mcp', routes, { limit: 2 }).done;
+      expect(summary.created.map((c) => c.name)).toEqual(['mcp-top', 'mcp-mid']);
+    });
+
+    it('min_stars drops repositories below the threshold and says how many', async () => {
+      const summary = await run('https://github.com/acme/awesome-mcp', 'mcp', routes, { minStars: 1000 }).done;
+      expect(summary.created.map((c) => c.name)).toEqual(['mcp-top']);
+      expect(summary.skipped).toContainEqual({ name: '2 repositories', reason: 'below the minimum of 1000 stars' });
+    });
+  });
+
   it('allowlists install commands and classifies unknown tools as network, not harmless', () => {
     expect(safeInstallCommand('npx -y @scope/pkg@latest --read-only')).toBe('npx -y @scope/pkg@latest --read-only');
     expect(safeInstallCommand('docker run -i --rm -e GITHUB_TOKEN ghcr.io/github/github-mcp-server')).not.toBeNull();
@@ -340,7 +366,7 @@ describe('GitHub import: MCP servers (AC-I5)', () => {
 describe('GitHub import: rate limit (AC-I8)', () => {
   it('stops with a partial result instead of throwing, and keeps what it already saved', async () => {
     const routes: Record<string, Reply> = {
-      [`${API}/search/repositories?q=topic%3Aagent-skills&sort=stars&order=desc&per_page=15`]: {
+      [`${API}/search/repositories?q=topic%3Aagent-skills&sort=stars&order=desc&per_page=30`]: {
         items: [repoJson('acme', 'first'), repoJson('acme', 'second')],
       },
       ...repoRoutes('acme', 'first', { 'a/SKILL.md': SKILL('first-skill') }),

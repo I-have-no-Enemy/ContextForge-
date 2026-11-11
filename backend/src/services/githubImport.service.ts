@@ -19,6 +19,8 @@ export interface ImportOptions {
   submittedBy: string;
   /** Maximum number of NEW listings to create in this call. */
   limit?: number;
+  /** For topic and awesome-list sources: ignore repositories with fewer GitHub stars than this. */
+  minStars?: number;
   dryRun?: boolean;
   db?: Pick<typeof prisma, 'aiSkill' | 'mcpServer' | '$transaction'>;
   fetchImpl?: typeof fetch;
@@ -348,7 +350,9 @@ export async function importFromGithub(opts: ImportOptions): Promise<ImportSumma
     source: url, kind, dry_run: dryRun, created: [], skipped: [], failed: [], partial: false,
     api_calls: 0, rate_remaining: null,
   };
-  const ctx: Ctx = { client, db, submittedBy, dryRun, limit, summary };
+  const minStars = Math.max(0, Math.floor(opts.minStars ?? 0));
+  // Ranking a whole awesome list by stars costs one request per linked repository; only worth it with a token.
+  const ctx: Ctx = { client, db, submittedBy, dryRun, limit, summary, minStars, belowMin: 0, pool: token ? 1200 : limit * 4 };
 
   try {
     if (kind === 'skill') await importSkills(ctx, source);
@@ -361,6 +365,7 @@ export async function importFromGithub(opts: ImportOptions): Promise<ImportSumma
       throw err;
     }
   }
+  if (ctx.belowMin > 0) summary.skipped.push({ name: `${ctx.belowMin} repositories`, reason: `below the minimum of ${minStars} stars` });
   summary.api_calls = client.state.calls;
   summary.rate_remaining = client.state.remaining;
   console.info('[ContextForge GitHub Import]', JSON.stringify({ source: url, kind, dryRun, created: summary.created.length, skipped: summary.skipped.length, failed: summary.failed.length, partial: summary.partial, api_calls: summary.api_calls }));
@@ -374,6 +379,9 @@ interface Ctx {
   dryRun: boolean;
   limit: number;
   summary: ImportSummary;
+  minStars: number;
+  belowMin: number;
+  pool: number;
 }
 const full = (c: Ctx) => c.summary.created.length >= c.limit;
 
@@ -405,8 +413,12 @@ export function pickSkillFiles(paths: string[]): string[] {
 }
 
 async function importSkills(c: Ctx, s: Source) {
-  for (const { info, ref, path } of await reposFor(c, s, 15)) {
+  for (const { info, ref, path } of await reposFor(c, s, 30)) {
     if (full(c)) break;
+    if (s.type === 'topic' && info.stars < c.minStars) {
+      c.belowMin++;
+      continue;
+    }
     const snap = await c.client.snapshot(info, ref);
     if (!snap) {
       c.summary.skipped.push({ name: `${info.owner}/${info.repo}`, reason: 'repository or branch not found' });
@@ -551,7 +563,11 @@ async function* mcpCandidates(c: Ctx, s: Source): AsyncGenerator<McpCandidate> {
   };
 
   if (s.type === 'topic') {
-    for (const info of await c.client.searchTopic(s.topic, Math.min(50, c.limit * 3))) {
+    for (const info of await c.client.searchTopic(s.topic, Math.min(100, Math.max(50, c.limit * 3)))) {
+      if (info.stars < c.minStars) {
+        c.belowMin++;
+        continue;
+      }
       const readme = await readmeOf(info, info.default_branch);
       if (readme !== null) yield { info, readme, sourceUrl: info.html_url, sourceRef: info.default_branch, nameHint: info.repo };
     }
@@ -565,13 +581,22 @@ async function* mcpCandidates(c: Ctx, s: Source): AsyncGenerator<McpCandidate> {
   if (/awesome/i.test(info.repo)) {
     const list = (await readmeOf(info, info.default_branch)) ?? '';
     const seen = new Set<string>([`${info.owner}/${info.repo}`.toLowerCase()]);
+    // Look the linked repositories up first, then take the most-starred ones: list order is by category, not popularity.
+    const ranked: RepoInfo[] = [];
     for (const m of list.matchAll(/\]\(https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?\)/g)) {
       const key = `${m[1]}/${m[2]}`.toLowerCase();
       if (seen.has(key) || !SEGMENT.test(m[1]) || !SEGMENT.test(m[2])) continue;
       seen.add(key);
-      if (seen.size > c.limit * 4) break;
+      if (seen.size > c.pool) break;
       const cand = await c.client.repoInfo(m[1], m[2]);
-      if (!cand) continue;
+      if (cand) ranked.push(cand);
+    }
+    ranked.sort((a, b) => b.stars - a.stars);
+    for (const cand of ranked) {
+      if (cand.stars < c.minStars) {
+        c.belowMin++;
+        continue;
+      }
       const readme = await readmeOf(cand, cand.default_branch);
       if (readme !== null) yield { info: cand, readme, sourceUrl: cand.html_url, sourceRef: cand.default_branch, nameHint: cand.repo };
     }

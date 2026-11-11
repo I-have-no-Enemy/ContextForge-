@@ -73,9 +73,10 @@ Errors use the same shape with `success: false` and `error: { code, message, det
 
 ## Importing from GitHub
 
-`POST /admin/import/github` body: `{ "url": "https://github.com/<owner>/<repo>[/tree/<ref>/<path>]" | "https://github.com/topics/<topic>", "kind": "skill" | "mcp", "limit": 1-100 (default 20), "dry_run": boolean }`.
+`POST /admin/import/github` body: `{ "url": "https://github.com/<owner>/<repo>[/tree/<ref>/<path>]" | "https://github.com/topics/<topic>", "kind": "skill" | "mcp", "limit": 1-100 (default 20), "min_stars": integer >= 0 (default 0), "dry_run": boolean }`.
 
 - **Sources.** A repository (every `SKILL.md` in it, optionally under a `tree` path), a topic page (the most-starred repositories for that topic, through the GitHub search API), an "awesome" list (each linked repository becomes a candidate) or a monorepo of servers (`src/<name>/README.md`).
+- **Popularity.** A topic page is read most-starred first. An "awesome" list is ranked by each linked repository's stars before anything is imported (one lookup per link, so it needs `GITHUB_PAT`; without a token only the first `limit x 4` links are looked at). `min_stars` skips repositories below that count and reports how many.
 - **Where it reads.** Only `api.github.com` and `raw.githubusercontent.com`. Files are fetched at one pinned commit, which is stored in `source_ref`. Any other host, scheme, port or user-info in the URL is a 400 `INVALID_IMPORT_URL` before any request is made.
 - **What it stores.** Every item is created with `is_verified = false`, a pending review whose note names the source and license, and `source_url`, `source_license`, `source_ref`. Skills pass the prompt-injection scanner; a flagged skill is marked on its review.
 - **MCP servers.** The install command and tool list are read from the README. An install command is kept only if it is a plain `npx`, `uvx` or `docker run` line without shell syntax. Tool risk levels are a keyword guess and the review note says so. A server whose README gives no safe install command or no tool list is skipped and reported, not guessed.

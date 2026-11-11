@@ -43,6 +43,7 @@ describe('POST /admin/import/github access and input (AC-I6, OWASP A01, A10)', (
     [{ url: 'https://github.com.evil.example/a/b', kind: 'mcp' }, 'INVALID_IMPORT_URL'],
     [{ url: 'https://github.com/acme/skills', kind: 'plugin' }, 'VALIDATION_ERROR'],
     [{ url: 'https://github.com/acme/skills', kind: 'skill', limit: 5000 }, 'VALIDATION_ERROR'],
+    [{ url: 'https://github.com/acme/skills', kind: 'skill', min_stars: -1 }, 'VALIDATION_ERROR'],
     [{ kind: 'skill' }, 'VALIDATION_ERROR'],
   ])('400 for %j', async (payload, code) => {
     const res = await request(app).post('/api/v1/admin/import/github').set('Authorization', admin.auth).send(payload);

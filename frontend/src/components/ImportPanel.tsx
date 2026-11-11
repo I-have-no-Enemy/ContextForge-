@@ -17,6 +17,7 @@ export function ImportPanel({ onDone }: { onDone: () => void }) {
   const [url, setUrl] = useState('');
   const [kind, setKind] = useState<'skill' | 'mcp'>('skill');
   const [limit, setLimit] = useState('20');
+  const [minStars, setMinStars] = useState('0');
   const [busy, setBusy] = useState<'preview' | 'import' | null>(null);
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<ImportSummary | null>(null);
@@ -33,10 +34,15 @@ export function ImportPanel({ onDone }: { onDone: () => void }) {
       setError('Limit must be a whole number from 1 to 100.');
       return;
     }
+    const stars = Number(minStars);
+    if (!Number.isInteger(stars) || stars < 0) {
+      setError('Minimum stars must be a whole number, 0 or more.');
+      return;
+    }
     setError(undefined);
     setBusy(dry ? 'preview' : 'import');
     try {
-      const r = await api.importGithub({ url: address, kind, limit: n, dry_run: dry });
+      const r = await api.importGithub({ url: address, kind, limit: n, min_stars: stars, dry_run: dry });
       setResult(r);
       if (!dry) {
         toast(`${r.created.length} queued for review, ${r.skipped.length} skipped.`, r.failed.length ? 'error' : 'ok');
@@ -94,6 +100,11 @@ export function ImportPanel({ onDone }: { onDone: () => void }) {
           <Field label="Up to">
             {(p) => (
               <input {...p} className="cf-input cf-mono" type="number" min={1} max={100} value={limit} onChange={(e) => setLimit(e.target.value)} />
+            )}
+          </Field>
+          <Field label="Min stars" hint="Topics and lists only.">
+            {(p) => (
+              <input {...p} className="cf-input cf-mono" type="number" min={0} value={minStars} onChange={(e) => setMinStars(e.target.value)} />
             )}
           </Field>
         </div>

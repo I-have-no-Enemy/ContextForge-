@@ -557,7 +557,10 @@
   - คอลัมน์ `source_url`, `source_license`, `source_ref` (migration `20261111000001`, ใส่ Supabase แล้ว)
   - `githubImport.service.ts`, `POST /admin/import/github`, `POST /admin/submissions/approve-clean`, ฟอร์มใน Admin, CLI `npm run import:github`
   - กฎที่ test ล็อกไว้: host allowlist, install_command ต้องเป็น npx/uvx/docker run ไม่มี shell syntax, ข้าม MCP ที่ไม่มี tool list, ไม่สร้างซ้ำ (ชื่อ, package, เนื้อหาเหมือนกัน), โฟลเดอร์ที่มี SKILL.md เกิน 50 ไฟล์เอาแค่ 3, หยุดแบบ partial เมื่อโควตาหมด
-  - ผลจริง: skills 59 และ servers 15 อยู่ในคิว pending (ยังไม่ publish), scanner ไม่พบ flag
+  - ผลจริงรอบแรก (ไม่มี token): skills 59 และ servers 15 อยู่ในคิว pending
+  - ผลจริงหลังใส่ `GITHUB_PAT` (โควตา 5,000/ชม.): skills 139 (จาก 10 repo ดาว 759 ถึง 451,523) และ servers 34 (ดาว 112 ถึง 33,859, มัธยฐาน 358) ทั้งหมด pending, scanner ไม่พบ flag
+  - เพิ่มตัวกรอง `min_stars` และให้ awesome list เรียงตามดาวก่อน import (ค้นสูงสุด 1,200 ลิงก์เมื่อมี token) หลังพบว่ารอบแรกได้ MCP มัธยฐานแค่ 4 ดาว; ลบ MCP ที่ import เองและต่ำกว่า 200 ดาว 70 แถว
+  - MCP ส่วนใหญ่ถูกข้าม (ราว 60% ไม่มี tool list, ราว 30% ไม่มีคำสั่งติดตั้งที่ปลอดภัยใน README) เพราะไม่เดา risk level
 - **บั๊กที่เจอระหว่างทาง**: `safeInstallCommand` ยุบบรรทัดใหม่เป็นช่องว่างก่อนตรวจ (test จับได้); run แรกกับ topic ล้มทั้งรอบเพราะ README ยาวเกิน 100,000 ตัวอักษร (ตอนนี้ตัดแทนปฏิเสธ); import สร้างรายการซ้ำกับ seed (`memory-modelcontextprotocol`, `context7-upstash`) และสกิล `*-automation` 35 ตัวจากเทมเพลต ลบเฉพาะแถวที่ import เองและยัง pending แล้ว
-- **ผลการตรวจ**: `npm test` 156/156, `npm run e2e` Postman 55 request / 81 assertion ผ่านหมด, `tsc` และ `vite build` ผ่าน, `check-docs` ผ่าน, `db:check` 12/12
-- **ข้อจำกัด**: โควตา GitHub แบบไม่ใช้ token คือ 60 call/ชม. ตั้งตัวแปร `GITHUB_PAT` ในไฟล์ env ของโปรเจกต์เพื่อ import เพิ่ม (5,000 call/ชม.); ลำดับใน awesome-mcp-servers ไม่เรียงตามดาว
+- **ผลการตรวจ**: `npm test` 159/159, `npm run e2e` Postman 55 request / 81 assertion ผ่านหมด, `tsc` และ `vite build` ผ่าน, `check-docs` ผ่าน, `db:check` 12/12
+- **ข้อจำกัด**: โควตา GitHub แบบไม่ใช้ token คือ 60 call/ชม. ไม่มี `GITHUB_PAT` จะได้ 60 call/ชม. และ awesome list ไม่ถูกจัดอันดับตามดาว; รายการ tool และระดับความเสี่ยงของ MCP ที่ import มาอ่านจาก README ด้วยคีย์เวิร์ด ยังไม่ผ่านการยืนยัน (บางตัวได้ 40 tools ซึ่งเป็นเพดาน อาจรวมบรรทัดที่ไม่ใช่ tool)
