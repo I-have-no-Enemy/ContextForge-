@@ -44,3 +44,9 @@ skills-lock.json
 
 # Raw AI media (processed copies live in frontend/public/media)
 design/flow-raw/
+
+# reanimate capture evidence
+.reanimate/
+
+# designlang audit output (regenerate with designlang, see DEV notes)
+design/audit/
