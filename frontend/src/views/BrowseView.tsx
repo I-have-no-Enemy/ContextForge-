@@ -93,7 +93,7 @@ export function BrowseView() {
             risk={maxRisk(toolLevels(s))}
             stats={[
               { label: 'stars', value: s.github_stars },
-              { label: 'runs', value: s.downloads_count },
+              { label: 'exports', value: s.downloads_count },
             ]}
             selected={cart.has(s.id)}
             onToggle={() => cart.toggle({ id: s.id, kind: 'mcp', name: s.name })}

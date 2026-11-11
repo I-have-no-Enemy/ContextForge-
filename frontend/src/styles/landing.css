@@ -121,6 +121,9 @@
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
+  display: inline-flex; /* WCAG 2.5.8: a stand-alone control is at least 24px tall */
+  align-items: center;
+  min-height: 24px;
 }
 
 /* Composer bar: the one glass control on the film */
@@ -224,13 +227,10 @@
   background: var(--surface);
   color: var(--text);
   font: 500 var(--step--1) / 1 var(--font-mono);
-  cursor: grab;
+  cursor: pointer; /* the chip adds to the cart on click; nothing is draggable */
   touch-action: pan-y;
   user-select: none;
   position: relative;
-}
-.chip:active {
-  cursor: grabbing;
 }
 .chip[aria-pressed='true'] {
   border-color: var(--accent);

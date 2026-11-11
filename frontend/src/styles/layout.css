@@ -168,6 +168,12 @@
   padding-block: var(--space-l);
   font-size: var(--step--1);
 }
+/* The footer sits outside <main>, so on phones it needs its own clearance or the dock hides its last line. */
+@media (max-width: 899px) {
+  .site-foot {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+}
 
 /* Tiny screens: nothing may push past 320px */
 @media (max-width: 479px) {

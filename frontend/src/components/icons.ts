@@ -32,6 +32,6 @@ export {
   ShoppingBagOpen,
   Moon,
   Sun,
-  HandGrabbing,
+  BookOpen,
   Sparkle,
 } from '@phosphor-icons/react';

@@ -6,7 +6,9 @@ import { useToast } from '../lib/toast';
 import { useCart } from '../lib/cart';
 import { useTheme } from '../lib/theme';
 import { StatusBadge } from './ui/badge';
-import { Gavel, House, Moon, ShoppingBagOpen, Sun, UserCircle } from './icons';
+import { BookOpen, Gavel, House, Moon, ShoppingBagOpen, Sun, UserCircle } from './icons';
+
+const API_DOCS_URL = 'https://github.com/I-have-no-Enemy/ContextForge-/blob/main/docs/API.md';
 
 const goToCart = (route: Route) => {
   if (route.name !== 'browse') navigate(href.browse());
@@ -45,7 +47,7 @@ export function Topbar({ route }: { route: Route }) {
           {user && link(href.workspace(), 'Workspace', route.name === 'workspace')}
           {user?.role === 'admin' && link(href.admin(), 'Admin', route.name === 'admin')}
           <li>
-            <a className="glass-btn" href="https://github.com/I-have-no-Enemy/ContextForge-/blob/main/docs/API.md" target="_blank" rel="noreferrer">
+            <a className="glass-btn" href={API_DOCS_URL} target="_blank" rel="noreferrer">
               API docs
             </a>
           </li>
@@ -80,7 +82,7 @@ export function Topbar({ route }: { route: Route }) {
               </button>
             </>
           ) : (
-            <button type="button" className="glass-btn" aria-pressed="true" onClick={requestSignIn}>
+            <button type="button" className="glass-btn topbar__signin" aria-pressed="true" onClick={requestSignIn}>
               Sign in
             </button>
           )}
@@ -117,6 +119,10 @@ export function Dock({ route }: { route: Route }) {
           Admin
         </a>
       )}
+      <a className="glass-btn" href={API_DOCS_URL} target="_blank" rel="noreferrer">
+        <BookOpen size={22} aria-hidden="true" />
+        API docs
+      </a>
       <button type="button" className="glass-btn" onClick={() => goToCart(route)} aria-label={`Config cart, ${cart.items.length} items`}>
         <ShoppingBagOpen size={22} aria-hidden="true" />
         Cart

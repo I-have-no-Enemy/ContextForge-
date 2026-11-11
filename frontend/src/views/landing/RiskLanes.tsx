@@ -62,7 +62,7 @@ export function RiskLanes() {
             tool, so you see that level first on every card.
           </p>
           <p className="lanes__count">
-            <b>{total}</b> tools across <b>{servers.length}</b> reviewed servers
+            <b>{total}</b> tools across <b>{servers.length}</b> reviewed servers.
           </p>
         </div>
         <div className="lanes__cols">
@@ -75,7 +75,7 @@ export function RiskLanes() {
                   <h3>{RISK_LABEL[level]}</h3>
                   <span className="lane__n">{inLane.length}</span>
                 </div>
-                <p className="lane__meaning">{RISK_MEANING[level]}</p>
+                <p className="lane__meaning">{RISK_MEANING[level]}.</p>
                 <ul className="lane__list">
                   {inLane.map((t) => (
                     <li key={`${t.server.id}-${t.name}`}>

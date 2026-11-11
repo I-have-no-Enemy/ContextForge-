@@ -192,6 +192,10 @@
   main {
     padding-bottom: 96px;
   }
+  /* Sign in lives in the dock on phones; a second one in the top bar is a duplicate. */
+  .topbar__signin {
+    display: none;
+  }
   .cart-bar {
     display: none !important;
   }

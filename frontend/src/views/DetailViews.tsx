@@ -6,6 +6,7 @@ import { href, navigate } from '../lib/router';
 import { canManage, useSession } from '../lib/session';
 import { useCart } from '../lib/cart';
 import { errorText, useToast } from '../lib/toast';
+import { formatDate } from '../lib/utils';
 import { Button } from '../components/ui/button';
 import { Tag } from '../components/ui/badge';
 import { RiskMeter, maxRisk } from '../components/ui/risk-meter';
@@ -145,7 +146,7 @@ export function ServerDetailView({ id }: { id: string }) {
           <dd className="cf-mono">
             {server.github_stars.toLocaleString('en-US')} stars · {(server.github_contributors ?? 0).toLocaleString('en-US')} contributors
             {server.github_last_synced_at && (
-              <span className="cf-muted"> · synced {new Date(server.github_last_synced_at).toLocaleDateString()}</span>
+              <span className="cf-muted"> · synced {formatDate(server.github_last_synced_at)}</span>
             )}
           </dd>
           <dt>Config exports</dt>

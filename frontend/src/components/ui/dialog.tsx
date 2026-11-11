@@ -10,6 +10,9 @@ export interface DialogProps {
   footer?: React.ReactNode;
 }
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export function Dialog({ open, onOpenChange, title, description, children, footer }: DialogProps) {
   const ref = React.useRef<HTMLDivElement>(null);
   const titleId = React.useId();
@@ -25,10 +28,39 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
     // Focus the first field when there is one, otherwise the dialog itself.
     const firstField = ref.current?.querySelector<HTMLElement>('input:not([type=hidden]):not([disabled]), textarea, select');
     (firstField ?? ref.current)?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onOpenChangeRef.current(false);
+    const focusables = () =>
+      Array.from(ref.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).filter((el) => el.offsetParent !== null);
+
+    // aria-modal promises that nothing behind the dialog is reachable, so Tab wraps inside it (WCAG 2.4.3).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') return onOpenChangeRef.current(false);
+      if (e.key !== 'Tab' || !ref.current) return;
+      const items = focusables();
+      if (items.length === 0) {
+        e.preventDefault();
+        ref.current.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === ref.current)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    // Focus that lands outside (a click on the page behind, a screen reader jump) is pulled back in.
+    const onFocusIn = (e: FocusEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) (focusables()[0] ?? ref.current).focus();
+    };
     document.addEventListener('keydown', onKey);
+    document.addEventListener('focusin', onFocusIn);
     return () => {
       document.removeEventListener('keydown', onKey);
+      document.removeEventListener('focusin', onFocusIn);
       returnTo?.focus();
     };
   }, [open]);
