@@ -34,3 +34,10 @@ Thumbs.db
 
 # Generated seed passwords
 *.local.json
+
+# Local agent setup (per developer: MCP servers, installed skills)
+.mcp.json
+.claude/
+skills-lock.json
+.agents/skills/supabase/
+.agents/skills/supabase-postgres-best-practices/
