@@ -32,8 +32,8 @@ export function RiskMeter({ level, compact, className }: RiskMeterProps) {
           <span key={i} className={cn('cf-risk__bar', i < n && 'is-on')} />
         ))}
       </span>
-      {!compact && <span>{LABELS[level]}</span>}
-      <span className="cf-risk__code">{level}</span>
+      {/* One visible label: the human name, or the short code when compact. */}
+      {compact ? <span className="cf-risk__code">{level}</span> : <span>{LABELS[level]}</span>}
       <span className="cf-sr">, risk level {n} of 4</span>
     </span>
   );

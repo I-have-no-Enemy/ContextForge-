@@ -2,6 +2,7 @@
 
 .hero2 {
   position: relative;
+  isolation: isolate; /* own stacking context so the z-index:-1 film sits above the page background */
   min-height: min(100svh, 1080px);
   margin-top: -80px; /* run under the floating top bar */
   padding: calc(80px + var(--space-xl)) 0 var(--space-xl);
@@ -288,7 +289,7 @@
 
 /* ---------- Risk lanes ---------- */
 .lanes {
-  overflow-x: clip; /* scattered tiles start outside the lanes; never widen the page */
+  overflow: clip; /* scattered tiles start outside the lanes; they enter from the section edge and never widen the page */
 }
 .lanes__grid {
   display: grid;

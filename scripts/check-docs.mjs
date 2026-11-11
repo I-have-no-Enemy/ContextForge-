@@ -21,6 +21,18 @@ check(requests.length >= 40, `Postman collection has ${requests.length} requests
 // No demo credentials shipped in the UI
 check(!/Fill (Developer|Admin)|Password123!/.test(read('frontend/src/components/AuthDialog.tsx')), 'AuthDialog has no demo credentials');
 
+// Hero media from Google Flow: present and inside the 3 MB page budget
+import { statSync } from 'node:fs';
+const media = ['frontend/public/media/hero.mp4', 'frontend/public/media/hero-poster.webp'].map((p) => {
+  try {
+    return statSync(join(root, p)).size;
+  } catch {
+    return -1;
+  }
+});
+check(media.every((s) => s > 0), 'hero video and poster exist');
+check(media.reduce((a, b) => a + Math.max(b, 0), 0) <= 3 * 1024 * 1024, `hero media ${(media.reduce((a, b) => a + Math.max(b, 0), 0) / 1024).toFixed(0)} KB (<= 3 MB)`);
+
 if (failures.length) {
   for (const f of failures) console.error(`FAIL ${f}`);
   process.exit(1);

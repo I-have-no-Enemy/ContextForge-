@@ -111,6 +111,7 @@ function Shell() {
       <footer className="site-foot pg">
         <span>ContextForge · 06016418 Server-Side Web Development, KMITL IT</span>
         <span>Risk levels: read_only · network · filesystem · destructive</span>
+        <span>Hero film: AI-generated with Google Veo (Flow)</span>
       </footer>
       <CartBar route={route} />
       <Dock route={route} />

@@ -41,3 +41,6 @@ Thumbs.db
 skills-lock.json
 .agents/skills/supabase/
 .agents/skills/supabase-postgres-best-practices/
+
+# Raw AI media (processed copies live in frontend/public/media)
+design/flow-raw/

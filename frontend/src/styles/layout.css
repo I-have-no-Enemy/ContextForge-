@@ -179,3 +179,12 @@
     padding-inline: 18px;
   }
 }
+
+/* Risk meter bars take the level colour (the label still names the level) */
+.cf-risk__bar.is-on { border-color: transparent; }
+.cf-risk--read_only .cf-risk__bar.is-on { background: var(--risk-read_only); }
+.cf-risk--network .cf-risk__bar.is-on { background: var(--risk-network); }
+.cf-risk--filesystem .cf-risk__bar.is-on { background: var(--risk-filesystem); }
+.cf-risk--destructive .cf-risk__bar.is-on { background: var(--risk-destructive); }
+.cf-risk--destructive .cf-risk__code { text-decoration: none; color: var(--risk-destructive); }
+.cf-risk__bar { border-radius: 2px; border-color: var(--line-strong); }
