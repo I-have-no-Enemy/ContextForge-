@@ -31,5 +31,18 @@ export const emergencyTakedownSchema = z.object({
   reason: z.string().min(5, 'Reason must be at least 5 characters long'),
 });
 
+export const importGithubSchema = z.object({
+  url: z.string().trim().min(10, 'url is required').max(300, 'url is too long'),
+  kind: z.enum(['skill', 'mcp'], { errorMap: () => ({ message: "kind must be either 'skill' or 'mcp'" }) }),
+  limit: z.number().int().min(1).max(100).optional(),
+  dry_run: z.boolean().optional(),
+});
+
+export const approveCleanSchema = z.object({
+  item_type: z.enum(['server', 'skill'], {
+    errorMap: () => ({ message: "item_type must be either 'server' or 'skill'" }),
+  }),
+});
+
 export type ReviewSubmissionInput = z.infer<typeof reviewSubmissionSchema>;
 export type EmergencyTakedownInput = z.infer<typeof emergencyTakedownSchema>;

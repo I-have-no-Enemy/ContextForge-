@@ -24,6 +24,7 @@ export function createApp({ rateLimits = process.env.NODE_ENV !== 'test' }: AppO
     // Separate budgets: brute-forcing login and scraping config generation are different abuse cases.
     app.use(['/api/v1/auth/login', '/api/v1/auth/register'], perMinute(strictMax));
     app.use('/api/v1/configs/generate', perMinute(strictMax));
+    app.use('/api/v1/admin/import', perMinute(strictMax)); // each call fans out to GitHub
   }
   app.use(
     cors({

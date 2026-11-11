@@ -3,10 +3,13 @@ import { prisma } from '../config/prisma.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { getRegistryMetrics } from '../services/metrics.service.js';
 import { syncGithubMetrics } from '../services/githubSync.service.js';
+import { ImportInputError, importFromGithub } from '../services/githubImport.service.js';
 import {
   listSubmissionsQuerySchema,
   reviewSubmissionSchema,
   emergencyTakedownSchema,
+  importGithubSchema,
+  approveCleanSchema,
 } from '../validators/admin.validator.js';
 
 export class AdminController {
@@ -254,5 +257,84 @@ export class AdminController {
       message: `Emergency takedown completed for ${item_type} ${item_id}.`,
       takedown_log: { ...takedownLog, id: takedownLog.review_id },
     });
+  }
+
+  /**
+   * POST /api/v1/admin/import/github
+   * Reads skills or MCP servers from a public GitHub URL and queues them for review (never auto-approved).
+   */
+  public static async importGithub(req: Request, res: Response): Promise<void> {
+    const parsed = importGithubSchema.safeParse(req.body);
+    if (!parsed.success) {
+      sendError(res, 400, parsed.error.issues[0]?.message || 'Validation failed.', 'VALIDATION_ERROR', parsed.error.format());
+      return;
+    }
+    try {
+      const summary = await importFromGithub({
+        url: parsed.data.url,
+        kind: parsed.data.kind,
+        limit: parsed.data.limit,
+        dryRun: parsed.data.dry_run,
+        submittedBy: req.user!.user_id || req.user!.id!,
+      });
+      sendSuccess(res, summary, summary.created.length > 0 && !summary.dry_run ? 201 : 200);
+    } catch (err) {
+      if (err instanceof ImportInputError) {
+        sendError(res, 400, err.message, 'INVALID_IMPORT_URL');
+        return;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * POST /api/v1/admin/submissions/approve-clean
+   * One admin decision for every pending imported listing the scanner did not flag. Flagged items stay in the queue.
+   */
+  public static async approveClean(req: Request, res: Response): Promise<void> {
+    const parsed = approveCleanSchema.safeParse(req.body);
+    if (!parsed.success) {
+      sendError(res, 400, parsed.error.issues[0]?.message || 'Validation failed.', 'VALIDATION_ERROR', parsed.error.format());
+      return;
+    }
+    const { item_type } = parsed.data;
+    const adminId = req.user!.user_id || req.user!.id!;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const pending = await tx.submissionReview.findMany({
+        where: { item_type, status: 'pending' },
+        select: { review_id: true, item_id: true, flagged_by_scan: true },
+        take: 500,
+      });
+      const ids = pending.map((p) => p.item_id);
+      const imported =
+        item_type === 'server'
+          ? await tx.mcpServer.findMany({ where: { server_id: { in: ids }, source_url: { not: null }, is_verified: false, is_deleted: false }, select: { server_id: true } })
+          : await tx.aiSkill.findMany({ where: { skill_id: { in: ids }, source_url: { not: null }, is_verified: false, is_deleted: false }, select: { skill_id: true } });
+      const importedIds = new Set(imported.map((i: any) => i.server_id ?? i.skill_id));
+
+      const clean = pending.filter((p) => importedIds.has(p.item_id) && !p.flagged_by_scan);
+      const cleanIds = clean.map((p) => p.item_id);
+      if (cleanIds.length > 0) {
+        // The `is_verified: false` guard makes a repeated or concurrent call approve each item at most once.
+        if (item_type === 'server') await tx.mcpServer.updateMany({ where: { server_id: { in: cleanIds }, is_verified: false }, data: { is_verified: true } });
+        else await tx.aiSkill.updateMany({ where: { skill_id: { in: cleanIds }, is_verified: false }, data: { is_verified: true } });
+        await tx.submissionReview.updateMany({
+          where: { review_id: { in: clean.map((p) => p.review_id) }, status: 'pending' },
+          data: {
+            status: 'approved',
+            reviewer_id: adminId,
+            reviewed_at: new Date(),
+            review_notes: 'Bulk-approved by an admin: imported listing, scanner reported no flags.',
+          },
+        });
+      }
+      return {
+        approved: clean.length,
+        left_in_queue_flagged: pending.filter((p) => importedIds.has(p.item_id) && p.flagged_by_scan).length,
+      };
+    });
+
+    sendSuccess(res, result);
   }
 }

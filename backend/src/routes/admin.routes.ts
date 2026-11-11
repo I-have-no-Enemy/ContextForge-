@@ -22,3 +22,9 @@ adminRouter.post('/takedown', asyncHandler(AdminController.emergencyTakedown));
 
 // POST /api/v1/admin/sync/github (Refresh GitHub stars/contributors, spec US5)
 adminRouter.post('/sync/github', asyncHandler(AdminController.syncGithub));
+
+// POST /api/v1/admin/import/github (Read skills or MCP servers from a GitHub URL into the review queue)
+adminRouter.post('/import/github', asyncHandler(AdminController.importGithub));
+
+// POST /api/v1/admin/submissions/approve-clean (Approve every scanner-clean pending import in one decision)
+adminRouter.post('/submissions/approve-clean', asyncHandler(AdminController.approveClean));
