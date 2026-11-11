@@ -1,301 +1,147 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
-import jwt from 'jsonwebtoken';
 import { createApp } from '../app.js';
 import { prisma } from '../config/prisma.js';
+import { makeServer, makeSkill, makeUser, NIL_UUID, resetDb, type TestUser } from '../test/factories.js';
 
 const app = createApp();
-const JWT_SECRET = process.env.JWT_SECRET || 'contextforge_fallback_dev_secret_key_2026';
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+let dev: TestUser;
 
-const mockUser = {
-  id: '00000000-0000-0000-0000-000000000001',
-  email: 'dev@contextforge.local',
-  role: 'developer' as const,
-};
+beforeEach(async () => {
+  await resetDb();
+  dev = await makeUser();
+});
 
-const userToken = jwt.sign(mockUser, JWT_SECRET, { expiresIn: '1h' });
+describe('POST /api/v1/configs/generate (spec US2)', () => {
+  it('builds the Cursor file, stores the snapshot and bumps both download counters', async () => {
+    const server = await makeServer(dev, { name: 'github', env: ['GITHUB_PERSONAL_ACCESS_TOKEN'] });
+    const skill = await makeSkill(dev, { name: 'tdd-loop' });
 
-const validServerId = '11111111-1111-1111-1111-111111111111';
-const validSkillId = '22222222-2222-2222-2222-222222222222';
-const validConfigId = '33333333-3333-3333-3333-333333333333';
-
-describe('Config Generation & Snapshot Retrieval API (/api/v1/configs/*)', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    // Default: run the transaction callback against the (spied) client itself.
-    vi.spyOn(prisma, '$transaction').mockImplementation(async (cb: any) => cb(prisma));
-  });
-
-  it('AC4: aborts with the rejected id when a server is revoked between read and write (race guard)', async () => {
-    vi.spyOn(prisma.mcpServer, 'findMany').mockResolvedValue([
-      { server_id: validServerId, name: 'pg', install_command: 'npx pg', required_env_vars: [] } as any,
-    ]);
-    const create = vi.fn();
-    vi.spyOn(prisma, '$transaction').mockImplementation(async (cb: any) =>
-      cb({
-        mcpServer: {
-          findMany: (a: any) => prisma.mcpServer.findMany(a),
-          // takedown committed first: the conditional increment matches zero rows
-          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
-        },
-        aiSkill: { findMany: vi.fn().mockResolvedValue([]), updateMany: vi.fn() },
-        clientConfig: { create },
-      })
-    );
-
-    const response = await request(app)
+    const res = await request(app)
       .post('/api/v1/configs/generate')
-      .send({ client_type: 'claude_desktop', selected_server_ids: [validServerId] });
+      .set('Authorization', dev.auth)
+      .send({ client_type: 'cursor', selected_server_ids: [server.server_id], selected_skill_ids: [skill.skill_id] });
 
-    expect(response.status).toBe(400);
-    expect(response.body.error.code).toBe('INVALID_SELECTION');
-    expect(response.body.error.details.rejected_server_ids).toEqual([validServerId]);
-    expect(create).not.toHaveBeenCalled();
+    expect(res.status).toBe(201);
+    const files = res.body.data.generated_json;
+    expect(files.config_path).toBe('.cursor/mcp.json');
+    expect(files.config.mcpServers.github.env).toEqual({ GITHUB_PERSONAL_ACCESS_TOKEN: 'YOUR_GITHUB_PERSONAL_ACCESS_TOKEN_HERE' });
+    expect(files.skill_files[0].path).toBe('.cursor/rules/tdd-loop.mdc');
+
+    const stored = await prisma.clientConfig.findUniqueOrThrow({ where: { config_id: res.body.data.config_id } });
+    expect(stored.user_id).toBe(dev.user_id);
+    expect(stored.selected_server_ids).toEqual([server.server_id]);
+    expect((await prisma.mcpServer.findUniqueOrThrow({ where: { server_id: server.server_id } })).downloads_count).toBe(1);
+    expect((await prisma.aiSkill.findUniqueOrThrow({ where: { skill_id: skill.skill_id } })).downloads_count).toBe(1);
   });
 
-  describe('POST /api/v1/configs/generate', () => {
-    it('should generate Claude Desktop configuration anonymously (HTTP 201)', async () => {
-      vi.spyOn(prisma.mcpServer, 'findMany').mockResolvedValue([
-        {
-          server_id: validServerId,
-          name: 'postgres-inspector',
-          install_command: 'npx -y @modelcontextprotocol/server-postgres postgresql://...',
-          required_env_vars: ['DATABASE_URL'],
-        } as any,
-      ]);
-
-      vi.spyOn(prisma.aiSkill, 'findMany').mockResolvedValue([
-        {
-          skill_id: validSkillId,
-          name: 'anti-slop-designer',
-          skill_content: '# Anti Slop Design Guideline\nAvoid exaggerated marketing hype and AI slop.',
-        } as any,
-      ]);
-
-      const mockCreatedConfig = {
-        id: validConfigId,
-        user_id: null,
-        client_type: 'claude_desktop',
-        selected_server_ids: [validServerId],
-        selected_skill_ids: [validSkillId],
-        generated_json: {
-          mcpServers: {
-            'postgres-inspector': {
-              command: 'npx',
-              args: ['-y', '@modelcontextprotocol/server-postgres', 'postgresql://...'],
-              env: { DATABASE_URL: 'YOUR_DATABASE_URL_HERE' },
-            },
-          },
-          skills: [
-            {
-              name: 'anti-slop-designer',
-              contentSummary: '# Anti Slop Design Guideline\nAvoid exaggerated marketing hype and AI slop.',
-              content: '# Anti Slop Design Guideline\nAvoid exaggerated marketing hype and AI slop.',
-            },
-          ],
-        },
-        created_at: new Date(),
-      };
-
-      vi.spyOn(prisma, '$transaction').mockImplementation(async (callback: any) => {
-        const tx = {
-          clientConfig: {
-            create: vi.fn().mockResolvedValue(mockCreatedConfig),
-          },
-          mcpServer: {
-            findMany: (a: any) => prisma.mcpServer.findMany(a),
-            updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-          },
-          aiSkill: {
-            findMany: (a: any) => prisma.aiSkill.findMany(a),
-            updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-          },
-        };
-        return callback(tx);
-      });
-
-      const response = await request(app)
-        .post('/api/v1/configs/generate')
-        .send({
-          client_type: 'claude_desktop',
-          selected_server_ids: [validServerId],
-          selected_skill_ids: [validSkillId],
-        });
-
-      expect(response.status).toBe(201);
-      expect(response.body).toHaveProperty('success', true);
-      expect(response.body.data.id).toBe(validConfigId);
-      expect(response.body.data.client_type).toBe('claude_desktop');
-      expect(response.body.data.generated_json.mcpServers).toHaveProperty('postgres-inspector');
-      expect(response.body.data.generated_json.skills).toHaveLength(1);
-    });
-
-    it('should generate Cursor configuration for authenticated user attaching user_id (HTTP 201)', async () => {
-      vi.spyOn(prisma.mcpServer, 'findMany').mockResolvedValue([
-        {
-          server_id: validServerId,
-          name: 'github-mcp',
-          install_command: 'npx -y github-mcp',
-          required_env_vars: ['GITHUB_TOKEN'],
-        } as any,
-      ]);
-
-      const mockCreatedConfig = {
-        id: validConfigId,
-        user_id: mockUser.id,
-        client_type: 'cursor',
-        selected_server_ids: [validServerId],
-        selected_skill_ids: [],
-        generated_json: {
-          mcpServers: {
-            'github-mcp': {
-              command: 'npx',
-              args: ['-y', 'github-mcp'],
-              env: { GITHUB_TOKEN: 'YOUR_GITHUB_TOKEN_HERE' },
-            },
-          },
-          skills: [],
-        },
-        created_at: new Date(),
-      };
-
-      vi.spyOn(prisma, '$transaction').mockImplementation(async (callback: any) => {
-        const tx = {
-          clientConfig: {
-            create: vi.fn().mockResolvedValue(mockCreatedConfig),
-          },
-          mcpServer: {
-            findMany: (a: any) => prisma.mcpServer.findMany(a),
-            updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-          },
-          aiSkill: {
-            findMany: (a: any) => prisma.aiSkill.findMany(a),
-            updateMany: vi.fn().mockResolvedValue({ count: 0 }),
-          },
-        };
-        return callback(tx);
-      });
-
-      const response = await request(app)
-        .post('/api/v1/configs/generate')
-        .set('Authorization', `Bearer ${userToken}`)
-        .send({
-          client_type: 'cursor',
-          selected_server_ids: [validServerId],
-          selected_skill_ids: [],
-        });
-
-      expect(response.status).toBe(201);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.user_id).toBe(mockUser.id);
-    });
-
-    it('should reject generation when both server and skill selections are empty (HTTP 400)', async () => {
-      const response = await request(app)
-        .post('/api/v1/configs/generate')
-        .send({
-          client_type: 'claude_desktop',
-          selected_server_ids: [],
-          selected_skill_ids: [],
-        });
-
-      expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error.message).toContain('At least one MCP server or AI skill must be selected');
-    });
-
-    it('should reject invalid client_type (HTTP 400)', async () => {
-      const response = await request(app)
-        .post('/api/v1/configs/generate')
-        .send({
-          client_type: 'unknown_ide',
-          selected_server_ids: [validServerId],
-        });
-
-      expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
-    });
-
-    it('should reject when a selected server is unverified or non-existent (HTTP 400)', async () => {
-      // Return 0 servers when 1 was requested
-      vi.spyOn(prisma.mcpServer, 'findMany').mockResolvedValue([]);
-
-      const response = await request(app)
-        .post('/api/v1/configs/generate')
-        .send({
-          client_type: 'antigravity',
-          selected_server_ids: [validServerId],
-        });
-
-      expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe('INVALID_SELECTION');
-      expect(response.body.error.message).toContain('servers are invalid, unverified, or not found');
-    });
-
-    it('should reject when a selected skill is unverified or non-existent (HTTP 400)', async () => {
-      // Server is valid, but skill is not found
-      vi.spyOn(prisma.mcpServer, 'findMany').mockResolvedValue([
-        {
-          server_id: validServerId,
-          name: 'test-server',
-          install_command: 'npx test',
-          required_env_vars: [],
-        } as any,
-      ]);
-      vi.spyOn(prisma.aiSkill, 'findMany').mockResolvedValue([]);
-
-      const response = await request(app)
-        .post('/api/v1/configs/generate')
-        .send({
-          client_type: 'cline',
-          selected_server_ids: [validServerId],
-          selected_skill_ids: [validSkillId],
-        });
-
-      expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe('INVALID_SELECTION');
-      expect(response.body.error.message).toContain('skills are invalid, unverified, or not found');
-    });
+  it('works anonymously (user_id null) and de-duplicates repeated ids', async () => {
+    const server = await makeServer(dev);
+    const res = await request(app)
+      .post('/api/v1/configs/generate')
+      .send({ client_type: 'claude_desktop', selected_server_ids: [server.server_id, server.server_id] });
+    expect(res.status).toBe(201);
+    expect((await prisma.clientConfig.findFirstOrThrow()).user_id).toBeNull();
+    expect((await prisma.mcpServer.findUniqueOrThrow({ where: { server_id: server.server_id } })).downloads_count).toBe(1);
   });
 
-  describe('GET /api/v1/configs/:id', () => {
-    it('should retrieve existing configuration snapshot by UUID (HTTP 200)', async () => {
-      vi.spyOn(prisma.clientConfig, 'findUnique').mockResolvedValue({
-        id: validConfigId,
-        user_id: null,
-        client_type: 'cursor',
-        selected_server_ids: [validServerId],
-        selected_skill_ids: [],
-        generated_json: { mcpServers: {} },
-        created_at: new Date(),
-      } as any);
+  it.each([
+    ['unverified', { verified: false }],
+    ['soft-deleted', { deleted: true }],
+  ])('rejects a %s server with 400 naming the id, and writes nothing', async (_l, opts) => {
+    const good = await makeServer(dev);
+    const bad = await makeServer(dev, opts);
+    const res = await request(app)
+      .post('/api/v1/configs/generate')
+      .send({ client_type: 'cline', selected_server_ids: [good.server_id, bad.server_id] });
 
-      const response = await request(app).get(`/api/v1/configs/${validConfigId}`);
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_SELECTION');
+    expect(res.body.error.details.rejected_server_ids).toEqual([bad.server_id]);
+    expect(await prisma.clientConfig.count()).toBe(0);
+    expect((await prisma.mcpServer.findUniqueOrThrow({ where: { server_id: good.server_id } })).downloads_count).toBe(0);
+  });
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.id).toBe(validConfigId);
-    });
+  it('rejects an unknown skill id and an empty selection', async () => {
+    const unknown = await request(app).post('/api/v1/configs/generate').send({ client_type: 'cursor', selected_skill_ids: [NIL_UUID] });
+    expect(unknown.status).toBe(400);
+    expect(unknown.body.error.details.rejected_skill_ids).toEqual([NIL_UUID]);
+    const empty = await request(app).post('/api/v1/configs/generate').send({ client_type: 'cursor' });
+    expect(empty.status).toBe(400);
+    expect(empty.body.error.code).toBe('VALIDATION_ERROR');
+  });
 
-    it('should return HTTP 404 when configuration snapshot is not found', async () => {
-      vi.spyOn(prisma.clientConfig, 'findUnique').mockResolvedValue(null);
+  it('rejects an unsupported client_type', async () => {
+    const server = await makeServer(dev);
+    const res = await request(app).post('/api/v1/configs/generate').send({ client_type: 'vim', selected_server_ids: [server.server_id] });
+    expect(res.status).toBe(400);
+  });
 
-      const response = await request(app).get(`/api/v1/configs/${validConfigId}`);
+  it('AC4: a takedown that commits mid-request rolls the generation back (row lock race)', async () => {
+    const server = await makeServer(dev);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
 
-      expect(response.status).toBe(404);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe('NOT_FOUND');
-    });
+    // Admin transaction: flips the row and holds the lock until we release it.
+    const takedown = prisma.$transaction(
+      async (tx) => {
+        await tx.mcpServer.update({ where: { server_id: server.server_id }, data: { is_verified: false, is_deleted: true } });
+        await gate;
+      },
+      { timeout: 20_000 }
+    );
+    await sleep(500);
 
-    it('should return HTTP 400 when config ID is not a valid UUID', async () => {
-      const response = await request(app).get('/api/v1/configs/not-a-valid-uuid');
+    // Generation reads the last committed row (still verified), then blocks on the lock at updateMany.
+    const generation = request(app)
+      .post('/api/v1/configs/generate')
+      .send({ client_type: 'cursor', selected_server_ids: [server.server_id] })
+      .then((r) => r);
+    await sleep(1_500);
+    release();
+    await takedown;
+    const res = await generation;
 
-      expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe('INVALID_PARAMS');
-    });
+    expect(res.status).toBe(400);
+    expect(res.body.error.details.rejected_server_ids).toEqual([server.server_id]);
+    expect(await prisma.clientConfig.count()).toBe(0);
+    expect((await prisma.mcpServer.findUniqueOrThrow({ where: { server_id: server.server_id } })).downloads_count).toBe(0);
+  });
+});
+
+describe('GET /api/v1/configs/:id and /me', () => {
+  it('snapshot stays byte-identical after the server is deleted (immutability)', async () => {
+    const server = await makeServer(dev, { name: 'snapshot-me' });
+    const created = await request(app).post('/api/v1/configs/generate').send({ client_type: 'cursor', selected_server_ids: [server.server_id] });
+    await prisma.mcpServer.update({ where: { server_id: server.server_id }, data: { is_deleted: true, name: 'renamed' } });
+
+    const res = await request(app).get(`/api/v1/configs/${created.body.data.config_id}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.generated_json).toEqual(created.body.data.generated_json);
+    expect(Object.keys(res.body.data.generated_json.config.mcpServers)).toEqual(['snapshot-me']);
+  });
+
+  it('400 for a malformed id, 404 for an unknown one', async () => {
+    expect((await request(app).get('/api/v1/configs/abc')).status).toBe(400);
+    expect((await request(app).get(`/api/v1/configs/${NIL_UUID}`)).status).toBe(404);
+  });
+
+  it('GET /configs/me lists only the caller history, newest first; 401 without token', async () => {
+    const other = await makeUser();
+    const server = await makeServer(dev);
+    for (const [who, client] of [
+      [dev, 'cursor'],
+      [other, 'cline'],
+      [dev, 'antigravity'],
+    ] as const) {
+      await request(app).post('/api/v1/configs/generate').set('Authorization', who.auth).send({ client_type: client, selected_server_ids: [server.server_id] });
+      await sleep(20);
+    }
+
+    const res = await request(app).get('/api/v1/configs/me').set('Authorization', dev.auth);
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((c: any) => c.client_type)).toEqual(['antigravity', 'cursor']);
+    expect((await request(app).get('/api/v1/configs/me')).status).toBe(401);
   });
 });

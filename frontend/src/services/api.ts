@@ -85,11 +85,26 @@ export interface Submission {
   reviewed_at: string;
 }
 
+export interface SkillFile {
+  name: string;
+  path: string;
+  content: string;
+}
+
+/** The files a client loads, exactly as written to disk (backend ConfigGenerator). */
+export interface ClientFiles {
+  client: ClientId;
+  config_path: string;
+  config: { mcpServers: Record<string, unknown> };
+  skill_files: SkillFile[];
+  instructions: string;
+}
+
 export interface GeneratedConfig {
   config_id: string;
   id: string;
   client_type: ClientId;
-  generated_json: Record<string, any>;
+  generated_json: ClientFiles;
   selected_server_ids: string[];
   selected_skill_ids: string[];
   created_at: string;

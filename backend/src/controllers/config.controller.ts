@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma.js';
+import { Prisma } from '@prisma/client';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { generateConfigSchema, configIdParamSchema } from '../validators/config.validator.js';
 import { ConfigGenerator } from '../services/configGenerator.service.js';
@@ -54,7 +55,7 @@ export class ConfigController {
         const rawSkills = skillIds.length
           ? await tx.aiSkill.findMany({
               where: { skill_id: { in: skillIds }, ...live },
-              select: { skill_id: true, name: true, skill_content: true },
+              select: { skill_id: true, name: true, description: true, skill_content: true },
             })
           : [];
 
@@ -92,7 +93,7 @@ export class ConfigController {
             client_type,
             selected_server_ids: serverIds,
             selected_skill_ids: skillIds,
-            generated_json: generatedJson,
+            generated_json: generatedJson as unknown as Prisma.InputJsonObject,
           },
         });
       });

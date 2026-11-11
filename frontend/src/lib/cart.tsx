@@ -12,7 +12,7 @@ export const CLIENTS: ClientOption[] = [
   { id: 'claude_desktop', label: 'Claude Desktop', file: 'claude_desktop_config.json' },
   { id: 'cursor', label: 'Cursor', file: '.cursor/mcp.json' },
   { id: 'cline', label: 'Cline', file: 'cline_mcp_settings.json' },
-  { id: 'antigravity', label: 'Antigravity', file: 'agy.mcp.json' },
+  { id: 'antigravity', label: 'Antigravity', file: '~/.gemini/antigravity/mcp_config.json' },
 ];
 export const clientLabel = (id: string) => CLIENTS.find((c) => c.id === id)?.label ?? id;
 
@@ -32,14 +32,26 @@ interface Cart {
 
 const CartContext = createContext<Cart | null>(null);
 
-export function downloadConfig(config: GeneratedConfig) {
-  const blob = new Blob([JSON.stringify(config.generated_json, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
+function saveFile(name: string, content: string, type: string) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${config.client_type}_config.json`;
+  a.download = name;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+const baseName = (path: string) => path.split('/').pop() || path;
+export const configText = (c: GeneratedConfig) => JSON.stringify(c.generated_json.config ?? c.generated_json, null, 2);
+
+/** Saves the client's config file under its real file name. */
+export function downloadConfig(c: GeneratedConfig) {
+  saveFile(baseName(c.generated_json.config_path ?? `${c.client_type}.json`), configText(c), 'application/json');
+}
+
+/** Saves one skill file; the folder part of the path is kept in the name (skills__tdd__SKILL.md) so files never collide. */
+export function downloadSkill(path: string, content: string) {
+  saveFile(path.replace(/^[~./]+/, '').replace(/\//g, '__'), content, 'text/markdown');
 }
 
 /** Config cart shared by every page, plus the result dialog. */
@@ -89,7 +101,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [items, client, generating, warnings.join('|'), toast]
   );
 
-  const json = result ? JSON.stringify(result.generated_json, null, 2) : '';
+  const json = result ? configText(result) : '';
 
   return (
     <CartContext.Provider value={value}>
@@ -102,11 +114,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
             Config generated <Tag>{result?.client_type}</Tag>
           </>
         }
-        description={`Snapshot ${result?.id} · ${CLIENTS.find((c) => c.id === result?.client_type)?.file ?? ''}`}
+        description={`Snapshot ${result?.id?.slice(0, 8)} · save as ${result?.generated_json.config_path ?? ''}`}
         footer={
           <>
             <span className="cf-mono cf-muted" style={{ fontSize: 13 }}>
-              Replace each YOUR_..._HERE value with your own secret
+              Replace each YOUR_..._HERE value locally
             </span>
             <div className="cf-row">
               <Button
@@ -122,13 +134,33 @@ export function CartProvider({ children }: { children: ReactNode }) {
                 {copied ? 'Copied' : 'Copy JSON'}
               </Button>
               <Button variant="primary" size="sm" icon={Download} onClick={() => result && downloadConfig(result)}>
-                Download
+                Download config
               </Button>
             </div>
           </>
         }
       >
-        <pre className="cf-code">{json}</pre>
+        <div className="stack-24">
+          {result?.generated_json.instructions && <p className="form__lead">{result.generated_json.instructions}</p>}
+          <pre className="cf-code" aria-label={result?.generated_json.config_path}>
+            {json}
+          </pre>
+          {!!result?.generated_json.skill_files?.length && (
+            <div>
+              <h3 className="cf-field__label">Skill files ({result.generated_json.skill_files.length})</h3>
+              <ul className="rows">
+                {result.generated_json.skill_files.map((f) => (
+                  <li key={f.path} className="row">
+                    <span className="row__main cf-mono">{f.path}</span>
+                    <Button variant="ghost" size="sm" icon={Download} onClick={() => downloadSkill(f.path, f.content)}>
+                      Download
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </Dialog>
     </CartContext.Provider>
   );

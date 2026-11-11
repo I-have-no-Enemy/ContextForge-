@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { sendSuccess } from '../utils/response.js';
+import { prisma } from '../config/prisma.js';
 
 import { authRouter } from './auth.routes.js';
 import { serverRouter } from './server.routes.js';
@@ -9,14 +10,27 @@ import { adminRouter } from './admin.routes.js';
 
 export const apiRouter = Router();
 
-// Healthcheck & System Telemetry Endpoint
-apiRouter.get('/health', (_req, res) => {
-  sendSuccess(res, {
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptimeSeconds: Math.floor(process.uptime()),
-    version: '1.0.0',
-  });
+// Healthcheck: reports the real database state, 503 when it cannot answer.
+apiRouter.get('/health', async (_req, res) => {
+  const started = Date.now();
+  let database: 'up' | 'down' = 'up';
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch {
+    database = 'down';
+  }
+  sendSuccess(
+    res,
+    {
+      status: database === 'up' ? 'healthy' : 'degraded',
+      database,
+      dbLatencyMs: Date.now() - started,
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: Math.floor(process.uptime()),
+      version: '1.0.0',
+    },
+    database === 'up' ? 200 : 503
+  );
 });
 
 // Authentication & Identity Routes

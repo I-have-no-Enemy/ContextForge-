@@ -1,293 +1,169 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
-import jwt from 'jsonwebtoken';
 import { createApp } from '../app.js';
 import { prisma } from '../config/prisma.js';
+import { makePendingReview, makeServer, makeSkill, makeUser, NIL_UUID, resetDb, type TestUser } from '../test/factories.js';
 
 const app = createApp();
-const JWT_SECRET = process.env.JWT_SECRET || 'contextforge_fallback_dev_secret_key_2026';
+let admin: TestUser;
+let dev: TestUser;
 
-const adminUser = {
-  id: '00000000-0000-0000-0000-000000000099',
-  email: 'admin@contextforge.local',
-  role: 'admin' as const,
-};
+beforeEach(async () => {
+  await resetDb();
+  [admin, dev] = await Promise.all([makeUser('admin'), makeUser('developer')]);
+});
 
-const devUser = {
-  id: '00000000-0000-0000-0000-000000000001',
-  email: 'dev@contextforge.local',
-  role: 'developer' as const,
-};
+describe('RBAC on every /admin route (OWASP A01)', () => {
+  const routes: [string, string][] = [
+    ['get', '/api/v1/admin/metrics'],
+    ['get', '/api/v1/admin/submissions'],
+    ['post', '/api/v1/admin/submissions/review'],
+    ['post', '/api/v1/admin/takedown'],
+    ['post', '/api/v1/admin/sync/github'],
+  ];
 
-const adminToken = jwt.sign(adminUser, JWT_SECRET, { expiresIn: '1h' });
-const devToken = jwt.sign(devUser, JWT_SECRET, { expiresIn: '1h' });
-
-const validServerId = '11111111-1111-1111-1111-111111111111';
-const validSkillId = '22222222-2222-2222-2222-222222222222';
-const validReviewId = '44444444-4444-4444-4444-444444444444';
-
-describe('Admin Governance & Security Review API (/api/v1/admin/*)', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
+  it.each(routes)('%s %s: 401 without token, 403 for a developer', async (method, path) => {
+    const anon = await (request(app) as any)[method](path);
+    expect(anon.status).toBe(401);
+    const asDev = await (request(app) as any)[method](path).set('Authorization', dev.auth);
+    expect(asDev.status).toBe(403);
+    expect(asDev.body.error.code).toBe('FORBIDDEN');
   });
 
-  describe('RBAC & Route Protection', () => {
-    it('should reject unauthenticated requests with HTTP 401', async () => {
-      const response = await request(app).get('/api/v1/admin/submissions');
-      expect(response.status).toBe(401);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe('UNAUTHORIZED');
-    });
+  it('a developer token with role edited to admin but a wrong signature is rejected', async () => {
+    const [h, p] = dev.auth.replace('Bearer ', '').split('.');
+    const payload = JSON.parse(Buffer.from(p, 'base64url').toString());
+    const forged = `${h}.${Buffer.from(JSON.stringify({ ...payload, role: 'admin' })).toString('base64url')}.invalidsig`;
+    const res = await request(app).get('/api/v1/admin/metrics').set('Authorization', `Bearer ${forged}`);
+    expect(res.status).toBe(401);
+  });
+});
 
-    it('should reject non-admin (developer) users with HTTP 403 Forbidden', async () => {
-      const response = await request(app)
-        .get('/api/v1/admin/submissions')
-        .set('Authorization', `Bearer ${devToken}`);
+describe('GET /api/v1/admin/submissions', () => {
+  it('filters the queue by status and flagged_by_scan', async () => {
+    const s1 = await makeSkill(dev, { verified: false });
+    const s2 = await makeSkill(dev, { verified: false });
+    await makePendingReview(dev, 'skill', s1.skill_id, true);
+    await makePendingReview(dev, 'skill', s2.skill_id, false);
 
-      expect(response.status).toBe(403);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe('FORBIDDEN');
+    const flagged = await request(app).get('/api/v1/admin/submissions?status=pending&flagged_by_scan=true').set('Authorization', admin.auth);
+    expect(flagged.status).toBe(200);
+    expect(flagged.body.data.map((r: any) => r.item_id)).toEqual([s1.skill_id]);
+    const all = await request(app).get('/api/v1/admin/submissions?status=pending').set('Authorization', admin.auth);
+    expect(all.body.pagination.total).toBe(2);
+  });
+
+  it('400 for an invalid status filter', async () => {
+    const res = await request(app).get('/api/v1/admin/submissions?status=maybe').set('Authorization', admin.auth);
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /api/v1/admin/submissions/review (spec US4)', () => {
+  it('approve flips is_verified in the same transaction and closes the pending review', async () => {
+    const server = await makeServer(dev, { verified: false });
+    await makePendingReview(dev, 'server', server.server_id);
+
+    const res = await request(app)
+      .post('/api/v1/admin/submissions/review')
+      .set('Authorization', admin.auth)
+      .send({ item_type: 'server', item_id: server.server_id, status: 'approved', review_notes: 'Checked' });
+
+    expect(res.status).toBe(200);
+    expect((await prisma.mcpServer.findUniqueOrThrow({ where: { server_id: server.server_id } })).is_verified).toBe(true);
+    const reviews = await prisma.submissionReview.findMany({ where: { item_id: server.server_id } });
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0]).toMatchObject({ status: 'approved', reviewer_id: admin.user_id, review_notes: 'Checked' });
+    expect((await request(app).get(`/api/v1/servers/${server.server_id}`)).status).toBe(200);
+  });
+
+  it('reject keeps the skill unverified and records the reason', async () => {
+    const skill = await makeSkill(dev, { verified: false });
+    await makePendingReview(dev, 'skill', skill.skill_id, true);
+    await request(app)
+      .post('/api/v1/admin/submissions/review')
+      .set('Authorization', admin.auth)
+      .send({ item_type: 'skill', item_id: skill.skill_id, status: 'rejected', review_notes: 'Exfiltration pattern' });
+
+    expect((await prisma.aiSkill.findUniqueOrThrow({ where: { skill_id: skill.skill_id } })).is_verified).toBe(false);
+    expect(await prisma.submissionReview.findFirstOrThrow({ where: { item_id: skill.skill_id } })).toMatchObject({
+      status: 'rejected',
+      review_notes: 'Exfiltration pattern',
     });
   });
 
-  describe('GET /api/v1/admin/submissions', () => {
-    it('should list pending submissions with scan flags for admin (HTTP 200)', async () => {
-      vi.spyOn(prisma.submissionReview, 'count').mockResolvedValue(1);
-      vi.spyOn(prisma.submissionReview, 'findMany').mockResolvedValue([
-        {
-          id: validReviewId,
-          item_type: 'skill',
-          item_id: validSkillId,
-          reviewer_id: adminUser.id,
-          status: 'pending',
-          flagged_by_scan: true,
-          review_notes: 'Automated scan detected prompt injection attempt.',
-          reviewed_at: new Date(),
-          reviewer: {
-            id: adminUser.id,
-            email: adminUser.email,
-            role: adminUser.role,
-          },
-        } as any,
-      ]);
-
-      const response = await request(app)
-        .get('/api/v1/admin/submissions?status=pending&flagged_by_scan=true&page=1&limit=10')
-        .set('Authorization', `Bearer ${adminToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data).toHaveLength(1);
-      expect(response.body.data[0].flagged_by_scan).toBe(true);
-      expect(response.body.pagination).toEqual({
-        page: 1,
-        limit: 10,
-        total: 1,
-        totalPages: 1,
-      });
-    });
-  });
-
-  describe('POST /api/v1/admin/submissions/review (Polymorphic & Approval Logic)', () => {
-    it('should enforce Polymorphic Integrity: reject review when item_type is server but ID does not exist (HTTP 400)', async () => {
-      vi.spyOn(prisma.mcpServer, 'findUnique').mockResolvedValue(null);
-
-      const response = await request(app)
+  it('approving twice leaves the same state (idempotent)', async () => {
+    const server = await makeServer(dev, { verified: false });
+    await makePendingReview(dev, 'server', server.server_id);
+    const send = () =>
+      request(app)
         .post('/api/v1/admin/submissions/review')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({
-          item_type: 'server',
-          item_id: validServerId,
-          status: 'approved',
-          review_notes: 'Legit server',
-        });
-
-      expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe('POLYMORPHIC_REFERENCE_ERROR');
-      expect(response.body.error.message).toContain('Referenced MCP Server not found');
-    });
-
-    it('should approve MCP server and transactionally set is_verified to true (HTTP 200)', async () => {
-      vi.spyOn(prisma.mcpServer, 'findUnique').mockResolvedValue({
-        id: validServerId,
-        name: 'verified-server',
-        is_verified: false,
-      } as any);
-
-      const mockReviewRecord = {
-        id: validReviewId,
-        item_type: 'server',
-        item_id: validServerId,
-        reviewer_id: adminUser.id,
-        status: 'approved',
-        flagged_by_scan: false,
-        review_notes: 'Approved after security audit.',
-        reviewed_at: new Date(),
-      };
-
-      vi.spyOn(prisma, '$transaction').mockImplementation(async (callback: any) => {
-        const tx = {
-          mcpServer: {
-            update: vi.fn().mockResolvedValue({ id: validServerId, is_verified: true }),
-          },
-          aiSkill: {
-            update: vi.fn(),
-          },
-          submissionReview: {
-            findFirst: vi.fn().mockResolvedValue(null),
-            create: vi.fn().mockResolvedValue(mockReviewRecord),
-            update: vi.fn(),
-          },
-        };
-        return callback(tx);
-      });
-
-      const response = await request(app)
-        .post('/api/v1/admin/submissions/review')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({
-          item_type: 'server',
-          item_id: validServerId,
-          status: 'approved',
-          review_notes: 'Approved after security audit.',
-        });
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.status).toBe('approved');
-    });
-
-    it('should reject AI skill and transactionally ensure is_verified remains false (HTTP 200)', async () => {
-      vi.spyOn(prisma.aiSkill, 'findUnique').mockResolvedValue({
-        id: validSkillId,
-        name: 'suspicious-skill',
-        is_verified: false,
-      } as any);
-
-      const mockReviewRecord = {
-        id: validReviewId,
-        item_type: 'skill',
-        item_id: validSkillId,
-        reviewer_id: adminUser.id,
-        status: 'rejected',
-        flagged_by_scan: true,
-        review_notes: 'Rejected due to credential theft pattern.',
-        reviewed_at: new Date(),
-      };
-
-      vi.spyOn(prisma, '$transaction').mockImplementation(async (callback: any) => {
-        const tx = {
-          aiSkill: {
-            update: vi.fn().mockResolvedValue({ id: validSkillId, is_verified: false }),
-          },
-          mcpServer: {
-            update: vi.fn(),
-          },
-          submissionReview: {
-            findFirst: vi.fn().mockResolvedValue({ id: validReviewId }),
-            update: vi.fn().mockResolvedValue(mockReviewRecord),
-          },
-        };
-        return callback(tx);
-      });
-
-      const response = await request(app)
-        .post('/api/v1/admin/submissions/review')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({
-          item_type: 'skill',
-          item_id: validSkillId,
-          status: 'rejected',
-          review_notes: 'Rejected due to credential theft pattern.',
-        });
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.status).toBe('rejected');
-    });
+        .set('Authorization', admin.auth)
+        .send({ item_type: 'server', item_id: server.server_id, status: 'approved' });
+    await send();
+    await send();
+    expect((await prisma.mcpServer.findUniqueOrThrow({ where: { server_id: server.server_id } })).is_verified).toBe(true);
+    expect(await prisma.submissionReview.count({ where: { item_id: server.server_id, status: 'pending' } })).toBe(0);
   });
 
-  describe('POST /api/v1/admin/takedown (Emergency Revocation)', () => {
-    it('should emergency-revoke and soft-delete an MCP server (HTTP 200)', async () => {
-      vi.spyOn(prisma.mcpServer, 'findUnique').mockResolvedValue({
-        id: validServerId,
-        name: 'compromised-server',
-        is_verified: true,
-        is_deleted: false,
-      } as any);
+  it('polymorphic integrity: item_type server with a skill id is 400 and changes nothing', async () => {
+    const skill = await makeSkill(dev, { verified: false });
+    const res = await request(app)
+      .post('/api/v1/admin/submissions/review')
+      .set('Authorization', admin.auth)
+      .send({ item_type: 'server', item_id: skill.skill_id, status: 'approved' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('POLYMORPHIC_REFERENCE_ERROR');
+    expect((await prisma.aiSkill.findUniqueOrThrow({ where: { skill_id: skill.skill_id } })).is_verified).toBe(false);
+  });
+});
 
-      const mockTakedownLog = {
-        id: validReviewId,
-        item_type: 'server',
-        item_id: validServerId,
-        reviewer_id: adminUser.id,
-        status: 'rejected',
-        flagged_by_scan: true,
-        review_notes: '[EMERGENCY TAKEDOWN] Malicious remote execution vulnerability exploited.',
-        reviewed_at: new Date(),
-      };
+describe('POST /api/v1/admin/takedown', () => {
+  it('unverifies, soft deletes and writes an audit entry; existing snapshots survive', async () => {
+    const server = await makeServer(dev);
+    const cfg = await request(app).post('/api/v1/configs/generate').send({ client_type: 'cline', selected_server_ids: [server.server_id] });
 
-      vi.spyOn(prisma, '$transaction').mockImplementation(async (callback: any) => {
-        const tx = {
-          mcpServer: {
-            update: vi.fn().mockResolvedValue({ id: validServerId, is_deleted: true, is_verified: false }),
-          },
-          aiSkill: {
-            update: vi.fn(),
-          },
-          submissionReview: {
-            create: vi.fn().mockResolvedValue(mockTakedownLog),
-          },
-        };
-        return callback(tx);
-      });
+    const res = await request(app)
+      .post('/api/v1/admin/takedown')
+      .set('Authorization', admin.auth)
+      .send({ item_type: 'server', item_id: server.server_id, reason: 'Reported credential stealer' });
 
-      const response = await request(app)
-        .post('/api/v1/admin/takedown')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({
-          item_type: 'server',
-          item_id: validServerId,
-          reason: 'Malicious remote execution vulnerability exploited.',
-        });
+    expect(res.status).toBe(200);
+    const row = await prisma.mcpServer.findUniqueOrThrow({ where: { server_id: server.server_id } });
+    expect(row).toMatchObject({ is_verified: false, is_deleted: true });
+    const audit = await prisma.submissionReview.findFirstOrThrow({ where: { item_id: server.server_id } });
+    expect(audit.review_notes).toBe('[EMERGENCY TAKEDOWN] Reported credential stealer');
+    expect(audit.reviewer_id).toBe(admin.user_id);
+    expect((await request(app).get('/api/v1/servers')).body.data).toHaveLength(0);
+    expect((await request(app).get(`/api/v1/configs/${cfg.body.data.config_id}`)).status).toBe(200);
+  });
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.message).toContain('Emergency takedown completed');
-      expect(response.body.data.takedown_log.status).toBe('rejected');
-    });
+  it('404 for an unknown item, 400 for a reason under 5 characters', async () => {
+    const missing = await request(app).post('/api/v1/admin/takedown').set('Authorization', admin.auth).send({ item_type: 'skill', item_id: NIL_UUID, reason: 'malicious' });
+    expect(missing.status).toBe(404);
+    const short = await request(app).post('/api/v1/admin/takedown').set('Authorization', admin.auth).send({ item_type: 'skill', item_id: NIL_UUID, reason: 'bad' });
+    expect(short.status).toBe(400);
+  });
+});
 
-    it('should reject emergency takedown when item is not found (HTTP 404)', async () => {
-      vi.spyOn(prisma.mcpServer, 'findUnique').mockResolvedValue(null);
+describe('GET /api/v1/admin/metrics (AC8)', () => {
+  it('counts the real rows by lifecycle, queue state, role and client', async () => {
+    await makeServer(dev);
+    await makeServer(dev, { verified: false });
+    await makeServer(dev, { deleted: true });
+    const pendingSkill = await makeSkill(dev, { verified: false });
+    await makePendingReview(dev, 'skill', pendingSkill.skill_id, true);
+    const live = await makeServer(dev, { name: 'popular' });
+    await request(app).post('/api/v1/configs/generate').send({ client_type: 'cursor', selected_server_ids: [live.server_id] });
 
-      const response = await request(app)
-        .post('/api/v1/admin/takedown')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({
-          item_type: 'server',
-          item_id: validServerId,
-          reason: 'Non-existent server takedown attempt.',
-        });
+    const res = await request(app).get('/api/v1/admin/metrics').set('Authorization', admin.auth);
 
-      expect(response.status).toBe(404);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe('NOT_FOUND');
-    });
-
-    it('should reject emergency takedown when reason is too short (HTTP 400)', async () => {
-      const response = await request(app)
-        .post('/api/v1/admin/takedown')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({
-          item_type: 'server',
-          item_id: validServerId,
-          reason: 'bad', // < 5 chars
-        });
-
-      expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
-    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.users).toEqual({ total: 2, by_role: { admin: 1, developer: 1 } });
+    expect(res.body.data.servers).toEqual({ live: 2, unverified: 1, deleted: 1 });
+    expect(res.body.data.skills).toEqual({ live: 0, unverified: 1, deleted: 0 });
+    expect(res.body.data.queue).toEqual({ pending: 1, flagged_pending: 1, approved: 0, rejected: 0 });
+    expect(res.body.data.configs).toEqual({ total: 1, by_client: { cursor: 1 } });
+    expect(res.body.data.top_servers[0]).toMatchObject({ name: 'popular', downloads_count: 1 });
   });
 });

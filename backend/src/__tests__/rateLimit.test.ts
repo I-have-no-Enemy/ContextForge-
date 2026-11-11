@@ -3,7 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import { rateLimit } from '../middlewares/rateLimit.middleware.js';
 import { createApp } from '../app.js';
-import { prisma } from '../config/prisma.js';
+import { resetDb } from '../test/factories.js';
 
 function tinyApp(max: number, now: () => number) {
   const app = express();
@@ -36,7 +36,7 @@ describe('Rate limiting (spec US1 scenario 4, OWASP A04/A07)', () => {
   });
 
   it('AC5: the 11th login attempt within a minute is rejected with 429', async () => {
-    vi.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
+    await resetDb(); // the account does not exist: every attempt is a real 401 until the limiter answers 429
     const app = createApp({ rateLimits: true });
     const body = { email: 'brute@example.com', password: 'wrong-password1' };
 

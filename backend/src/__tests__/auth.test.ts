@@ -1,187 +1,118 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import { createApp } from '../app.js';
 import { prisma } from '../config/prisma.js';
+import { makeUser, resetDb } from '../test/factories.js';
 
 const app = createApp();
-const JWT_SECRET = process.env.JWT_SECRET || 'contextforge_fallback_dev_secret_key_2026';
 
-describe('Authentication API Endpoints (/api/v1/auth/*)', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
+describe('Auth API against PostgreSQL (/api/v1/auth/*)', () => {
+  beforeEach(resetDb);
 
-  describe('POST /api/v1/auth/register', () => {
-    it('should register a new user successfully (HTTP 201)', async () => {
-      vi.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
-      vi.spyOn(prisma.user, 'create').mockResolvedValue({
-        id: 'user-uuid-1',
-        email: 'newdev@example.com',
-        role: 'developer',
-        created_at: new Date(),
-      } as any);
+  describe('POST /register', () => {
+    it('creates a developer with a bcrypt hash and never returns the hash (201)', async () => {
+      const res = await request(app).post('/api/v1/auth/register').send({ email: 'New.Dev@Example.com', password: 'Password123!' });
 
-      const response = await request(app)
-        .post('/api/v1/auth/register')
-        .send({
-          email: 'newdev@example.com',
-          password: 'Password123!',
-          role: 'developer',
-        });
-
-      expect(response.status).toBe(201);
-      expect(response.body).toHaveProperty('success', true);
-      expect(response.body.data.user).toHaveProperty('id', 'user-uuid-1');
-      expect(response.body.data.user).toHaveProperty('email', 'newdev@example.com');
-      expect(response.body.data.user).toHaveProperty('role', 'developer');
-      expect(response.body.data.user).not.toHaveProperty('password_hash');
+      expect(res.status).toBe(201);
+      expect(res.text).not.toContain('password_hash');
+      const row = await prisma.user.findUnique({ where: { email: 'new.dev@example.com' } });
+      expect(row?.role).toBe('developer');
+      expect(row?.password_hash).not.toBe('Password123!');
+      expect(await bcrypt.compare('Password123!', row!.password_hash)).toBe(true);
+      expect(row!.password_hash.startsWith('$2b$12$')).toBe(true);
     });
 
-    it('should reject registration with invalid email (HTTP 400)', async () => {
-      const response = await request(app)
-        .post('/api/v1/auth/register')
-        .send({
-          email: 'invalid-email-format',
-          password: 'Password123!',
-        });
-
-      expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('success', false);
-      expect(response.body.error).toHaveProperty('code', 'VALIDATION_ERROR');
+    it('cannot self-register as admin (role is validated)', async () => {
+      const res = await request(app).post('/api/v1/auth/register').send({ email: 'x@example.com', password: 'Password123!', role: 'admin' });
+      expect(res.status).toBe(400);
+      expect(await prisma.user.count()).toBe(0);
     });
 
-    it('should reject registration with short password (HTTP 400)', async () => {
-      const response = await request(app)
-        .post('/api/v1/auth/register')
-        .send({
-          email: 'valid@example.com',
-          password: 'short',
-        });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    it.each([
+      ['invalid email', { email: 'not-an-email', password: 'Password123!' }],
+      ['7-char password (boundary)', { email: 'a@example.com', password: 'Pass12!' }],
+      ['password without a number', { email: 'a@example.com', password: 'Password!!' }],
+    ])('rejects %s with 400 VALIDATION_ERROR', async (_label, body) => {
+      const res = await request(app).post('/api/v1/auth/register').send(body);
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(await prisma.user.count()).toBe(0);
     });
 
-    it('should reject duplicate email registration (HTTP 409)', async () => {
-      vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({
-        id: 'existing-id',
-        email: 'existing@example.com',
-      } as any);
+    it('accepts an 8-char password (boundary)', async () => {
+      const res = await request(app).post('/api/v1/auth/register').send({ email: 'b@example.com', password: 'Pass123!' });
+      expect(res.status).toBe(201);
+    });
 
-      const response = await request(app)
-        .post('/api/v1/auth/register')
-        .send({
-          email: 'existing@example.com',
-          password: 'Password123!',
-        });
-
-      expect(response.status).toBe(409);
-      expect(response.body).toHaveProperty('success', false);
-      expect(response.body.error.code).toBe('EMAIL_ALREADY_EXISTS');
+    it('rejects a duplicate email case-insensitively (409) and keeps one row', async () => {
+      await request(app).post('/api/v1/auth/register').send({ email: 'dup@example.com', password: 'Password123!' });
+      const res = await request(app).post('/api/v1/auth/register').send({ email: 'DUP@example.com', password: 'Password123!' });
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('EMAIL_ALREADY_EXISTS');
+      expect(await prisma.user.count({ where: { email: 'dup@example.com' } })).toBe(1);
     });
   });
 
-  describe('POST /api/v1/auth/login', () => {
-    it('should authenticate user and return signed JWT + Set-Cookie (HTTP 200)', async () => {
-      const passwordHash = await bcrypt.hash('CorrectPassword123!', 10);
-      vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({
-        id: 'user-uuid-2',
-        email: 'user@example.com',
-        password_hash: passwordHash,
-        role: 'developer',
-      } as any);
+  describe('POST /login', () => {
+    it('returns a JWT and sets an HttpOnly SameSite=Strict cookie (200)', async () => {
+      const user = await makeUser('developer', 'Correct-horse-9');
+      const res = await request(app).post('/api/v1/auth/login').send({ email: user.email, password: 'Correct-horse-9' });
 
-      const response = await request(app)
-        .post('/api/v1/auth/login')
-        .send({
-          email: 'user@example.com',
-          password: 'CorrectPassword123!',
-        });
-
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('success', true);
-      expect(response.body.data).toHaveProperty('token');
-      expect(response.body.data.user).toHaveProperty('id', 'user-uuid-2');
-      expect(response.headers['set-cookie']).toBeDefined();
+      expect(res.status).toBe(200);
+      expect(res.body.data.token.split('.')).toHaveLength(3);
+      expect(res.body.data.user).toMatchObject({ user_id: user.user_id, role: 'developer' });
+      const cookie = String(res.headers['set-cookie']);
+      expect(cookie).toMatch(/token=/);
+      expect(cookie).toMatch(/HttpOnly/);
+      expect(cookie).toMatch(/SameSite=Strict/);
     });
 
-    it('should return 401 when email is not found', async () => {
-      vi.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
-
-      const response = await request(app)
-        .post('/api/v1/auth/login')
-        .send({
-          email: 'notfound@example.com',
-          password: 'SomePassword123!',
-        });
-
-      expect(response.status).toBe(401);
-      expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
-    });
-
-    it('should return 401 on incorrect password', async () => {
-      const passwordHash = await bcrypt.hash('CorrectPassword123!', 10);
-      vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({
-        id: 'user-uuid-2',
-        email: 'user@example.com',
-        password_hash: passwordHash,
-        role: 'developer',
-      } as any);
-
-      const response = await request(app)
-        .post('/api/v1/auth/login')
-        .send({
-          email: 'user@example.com',
-          password: 'WrongPassword!',
-        });
-
-      expect(response.status).toBe(401);
-      expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
+    it('answers the same 401 for an unknown email and a wrong password (no user enumeration)', async () => {
+      const user = await makeUser();
+      const unknown = await request(app).post('/api/v1/auth/login').send({ email: 'nobody@example.com', password: 'whatever1' });
+      const wrong = await request(app).post('/api/v1/auth/login').send({ email: user.email, password: 'wrong-pass-1' });
+      expect(unknown.status).toBe(401);
+      expect(wrong.status).toBe(401);
+      expect(unknown.body.error).toEqual(wrong.body.error);
     });
   });
 
-  describe('GET /api/v1/auth/me', () => {
-    it('should return profile with valid Bearer token (HTTP 200)', async () => {
-      const token = jwt.sign(
-        { id: 'user-uuid-3', email: 'verified@example.com', role: 'admin' },
-        JWT_SECRET,
-        { expiresIn: '1h' }
-      );
-
-      vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({
-        id: 'user-uuid-3',
-        email: 'verified@example.com',
-        role: 'admin',
-        created_at: new Date(),
-        updated_at: new Date(),
-      } as any);
-
-      const response = await request(app)
-        .get('/api/v1/auth/me')
-        .set('Authorization', `Bearer ${token}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.data.user).toHaveProperty('id', 'user-uuid-3');
-      expect(response.body.data.user).toHaveProperty('role', 'admin');
+  describe('GET /me', () => {
+    it('returns the profile for a Bearer token', async () => {
+      const user = await makeUser('admin');
+      const res = await request(app).get('/api/v1/auth/me').set('Authorization', user.auth);
+      expect(res.status).toBe(200);
+      expect(res.body.data.user).toMatchObject({ email: user.email, role: 'admin' });
     });
 
-    it('should return 401 when Authorization header is missing', async () => {
-      const response = await request(app).get('/api/v1/auth/me');
+    it('works from the login cookie alone (browser session)', async () => {
+      const user = await makeUser('developer', 'Cookie-pass-1');
+      const agent = request.agent(app);
+      await agent.post('/api/v1/auth/login').send({ email: user.email, password: 'Cookie-pass-1' });
+      const res = await agent.get('/api/v1/auth/me');
+      expect(res.status).toBe(200);
+      expect(res.body.data.user.email).toBe(user.email);
+    });
 
-      expect(response.status).toBe(401);
-      expect(response.body.error.code).toBe('UNAUTHORIZED');
+    it('401 without a token and 401 INVALID_TOKEN for a forged one', async () => {
+      expect((await request(app).get('/api/v1/auth/me')).status).toBe(401);
+      const forged = await request(app).get('/api/v1/auth/me').set('Authorization', 'Bearer eyJhbGciOiJub25lIn0.eyJyb2xlIjoiYWRtaW4ifQ.');
+      expect(forged.status).toBe(401);
+      expect(forged.body.error.code).toBe('INVALID_TOKEN');
+    });
+
+    it('404 when the token belongs to a deleted account', async () => {
+      const user = await makeUser();
+      await prisma.user.delete({ where: { user_id: user.user_id } });
+      const res = await request(app).get('/api/v1/auth/me').set('Authorization', user.auth);
+      expect(res.status).toBe(404);
     });
   });
 
-  describe('POST /api/v1/auth/logout', () => {
-    it('should clear authentication cookie (HTTP 200)', async () => {
-      const response = await request(app).post('/api/v1/auth/logout');
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.headers['set-cookie'][0]).toContain('token=;');
-    });
+  it('POST /logout clears the cookie', async () => {
+    const res = await request(app).post('/api/v1/auth/logout');
+    expect(res.status).toBe(200);
+    expect(String(res.headers['set-cookie'])).toMatch(/token=;/);
   });
 });

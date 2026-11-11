@@ -5,21 +5,17 @@ import { createApp } from '../app.js';
 describe('GET /api/v1/health', () => {
   const app = createApp();
 
-  it('should return HTTP 200 with healthy telemetry payload', async () => {
-    const response = await request(app).get('/api/v1/health');
+  it('reports healthy only after a real database round trip', async () => {
+    const res = await request(app).get('/api/v1/health');
 
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty('success', true);
-    expect(response.body.data).toHaveProperty('status', 'healthy');
-    expect(response.body.data).toHaveProperty('version', '1.0.0');
-    expect(response.body.data).toHaveProperty('uptimeSeconds');
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ status: 'healthy', database: 'up', version: '1.0.0' });
+    expect(res.body.data.dbLatencyMs).toBeGreaterThanOrEqual(0);
   });
 
-  it('should return HTTP 404 for non-existent endpoint', async () => {
-    const response = await request(app).get('/api/v1/non-existent-route');
-
-    expect(response.status).toBe(404);
-    expect(response.body).toHaveProperty('success', false);
-    expect(response.body.error).toHaveProperty('code', 'NOT_FOUND');
+  it('answers 404 NOT_FOUND for an unknown route', async () => {
+    const res = await request(app).get('/api/v1/non-existent-route');
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('NOT_FOUND');
   });
 });

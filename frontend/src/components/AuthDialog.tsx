@@ -7,11 +7,6 @@ import { Button } from './ui/button';
 import { Tabs } from './ui/tabs';
 import { Field } from './forms';
 
-/** Seeded accounts for the live demo (backend/prisma/seed.ts). */
-const DEMO = [
-  { label: 'Developer', email: 'developer@contextforge.dev', password: 'DevPassword123!' },
-  { label: 'Admin', email: 'admin@contextforge.dev', password: 'AdminPassword123!' },
-];
 
 export function AuthDialog() {
   const { signInRequested, closeSignIn, login, register } = useSession();
@@ -107,27 +102,6 @@ export function AuthDialog() {
           </Button>
         </div>
       </form>
-      {mode === 'login' && (
-        <div className="demo-accounts">
-          <span className="cf-field__label">Demo accounts</span>
-          <div className="cf-row">
-            {DEMO.map((d) => (
-              <Button
-                key={d.label}
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setEmail(d.email);
-                  setPassword(d.password);
-                  reset();
-                }}
-              >
-                Fill {d.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
     </Dialog>
   );
 }

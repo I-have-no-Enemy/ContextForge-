@@ -1658,7 +1658,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 201', () => pm.response.to.have.status(201));",
-                  "pm.test('env value is a placeholder', () => { const j = pm.response.json().data.generated_json; pm.expect(j.mcpServers['demo-server-' + pm.collectionVariables.get('runId')].env.DEMO_API_KEY).to.eql('YOUR_DEMO_API_KEY_HERE'); });",
+                  "pm.test('env value is a placeholder', () => { const j = pm.response.json().data.generated_json.config; pm.expect(j.mcpServers['demo-server-' + pm.collectionVariables.get('runId')].env.DEMO_API_KEY).to.eql('YOUR_DEMO_API_KEY_HERE'); });",
                   "pm.collectionVariables.set('configId', pm.response.json().data.config_id);"
                 ]
               }
@@ -1907,7 +1907,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('snapshot still lists the server', () => pm.expect(Object.keys(pm.response.json().data.generated_json.mcpServers)).to.include('demo-server-' + pm.collectionVariables.get('runId')));"
+                  "pm.test('snapshot still lists the server', () => pm.expect(Object.keys(pm.response.json().data.generated_json.config.mcpServers)).to.include('demo-server-' + pm.collectionVariables.get('runId')));"
                 ]
               }
             }

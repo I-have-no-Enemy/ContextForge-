@@ -347,7 +347,6 @@ textarea.cf-input { resize: vertical; }
 .cf-input:focus-visible, .cf-select:focus-visible { outline: 2px solid var(--color-chalk); outline-offset: 2px; border-color: var(--color-chalk); }
 .cf-input[aria-invalid="true"] { border-color: var(--color-chalk); border-style: dashed; }
 .cf-dialog .cf-tabs { margin-top: 4px; }
-.demo-accounts { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--color-graphite); }
 
 /* Toasts */
 .toasts { position: fixed; right: 24px; bottom: 24px; z-index: 70; display: flex; flex-direction: column; gap: 8px; max-width: min(420px, calc(100vw - 32px)); }
