@@ -25,7 +25,7 @@ Render is the other prepared option (`render.yaml`, `docs/DEPLOY.md`); pick one 
 
 | Name | Value |
 |---|---|
-| `DATABASE_URL` | The Supabase **transaction pooler** string (port 6543) with `?pgbouncer=true&connection_limit=1` appended. Copy it from the project's Connect page. Do not paste it into chat or into this repository. |
+| `DATABASE_URL` | The Supabase **transaction pooler** string (port 6543), copied from the project's Connect page, with the suffix `?pgbouncer=true&connection_limit=1` **typed on the end by hand**: the Connect page's copy button gives only `...:6543/postgres`. Percent-encode special characters in the password (`@` as `%40`, `/` as `%2F`, `#` as `%23`). Do not paste it into chat or into this repository. Two failures seen on the first deploy: a password with an unencoded `/` or `@` makes Prisma read the user name as the host (`Can't reach database server at postgres.<ref>:5432`); a missing suffix makes some requests fail with `prepared statement "s0" already exists` or `insufficient data left in message` (500 on `/skills`, flaky `/health`). The dedicated IPv4 add-on that the Connect page advertises is not needed; Vercel connects without it. |
 | `JWT_SECRET` | At least 32 random characters: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `TRUST_PROXY` | `1`. Vercel overwrites `X-Forwarded-For` with the real client address, so each visitor gets their own rate-limit bucket. |
 | `GITHUB_PAT` | Optional. A read-only token raises the GitHub rate limit for imports and star sync. |
@@ -66,8 +66,11 @@ Verified on the Windows development machine, in a clean clone with `npm ci`, the
 - The rewrite keeps the original URL: an unknown path answers `Endpoint GET /api/v1/nope ... not found` from Express.
 - The function runs in `sin1`, loads Express and the Prisma client, and answers JSON.
 - The site is served from the CDN with the CSP and security headers from `vercel.json`, and `theme-init.js` loads.
+- With the corrected `DATABASE_URL`: 23 consecutive API requests answered 200 (health 8, skills 8, servers 4, search 2, detail and tools 2); `skills` total 135 and `servers` total 39 with 457 tools match the database; no error lines in the runtime logs.
+- A JSON `POST` reaches Express and `bcrypt` runs on Linux: logging in as the existing admin with a wrong password answers 401 `INVALID_CREDENTIALS` in 0.78 s, and a malformed body answers 400 with field details. Signed-out `/auth/me` and `/admin/metrics` answer 401.
+- In a real Chromium at 1440 and 375 px: no Content-Security-Policy or console errors, no failed requests, 12 cards, the hero video plays, the "API live" badge shows, and opening an item then reloading its `#/servers/<id>` link still works.
 
-**Still not verified:** the database connection (`DATABASE_URL` was added after this deploy; until then `/api/v1/health` answers 503 with `database: down`), a JSON `POST` and `bcrypt` on Linux (registering an account tests both), the `TRUST_PROXY` effect, and cold-start timing. The checklist above covers each of them.
+**Still not verified:** the `TRUST_PROXY` effect (separate rate-limit buckets per visitor), registering a new account end to end, and cold-start timing (not measured; every request after the final deploy answered 200, including the first one).
 
 ## How the first deploy was made
 
