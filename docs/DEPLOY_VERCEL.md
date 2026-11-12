@@ -70,7 +70,13 @@ Verified on the Windows development machine, in a clean clone with `npm ci`, the
 - A JSON `POST` reaches Express and `bcrypt` runs on Linux: logging in as the existing admin with a wrong password answers 401 `INVALID_CREDENTIALS` in 0.78 s, and a malformed body answers 400 with field details. Signed-out `/auth/me` and `/admin/metrics` answer 401.
 - In a real Chromium at 1440 and 375 px: no Content-Security-Policy or console errors, no failed requests, 12 cards, the hero video plays, the "API live" badge shows, and opening an item then reloading its `#/servers/<id>` link still works.
 
-**Still not verified:** the `TRUST_PROXY` effect (separate rate-limit buckets per visitor), registering a new account end to end, and cold-start timing (not measured; every request after the final deploy answered 200, including the first one).
+- The rate limiter works behind Vercel's proxy: 12 login attempts with a different spoofed `X-Forwarded-For` each time got 401 ten times and then 429 with `Retry-After`, so Vercel overwrites that header and spoofing does not dodge the limit. (All attempts came from one real address and used a non-existent email.)
+
+**Still not verified:** that two different visitors get separate rate-limit buckets (needs two real client addresses), registering a new account end to end, and cold-start timing (not measured; every request after the final deploy answered 200, including the first one).
+
+## Who can open the site
+
+Production is public. The project's **Vercel Authentication** covers preview deployments only (`ssoProtection` is `preview`), so the production address opens without a Vercel login while previews still ask for one. This was changed on 2026-11-12 after the database connection checks passed; the app has its own sign-in, and registration is open by design. To close the site again, set Vercel Authentication back to "Standard Protection" in Settings, Deployment Protection.
 
 ## How the first deploy was made
 
