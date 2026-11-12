@@ -24,7 +24,7 @@ AI agent อย่าง Claude, Cursor, Cline, Antigravity ต่อ MCP server
 ## 2. ฐานข้อมูล (2 นาที)
 
 - เปิด Supabase → Table Editor ให้เห็น 6 ตาราง: `users`, `mcp_servers`, `tool_definitions`, `ai_skills`, `client_configs`, `submission_reviews`
-- ชี้ ER diagram ใน `docs/API.md` หัวข้อ Data model: `tool_definitions` ลบตาม server (CASCADE), `client_configs` เก็บ snapshot เป็น JSONB, `submission_reviews` อ้างถึง server หรือ skill แบบ polymorphic
+- เปิด `docs/erd.drawio` (สร้างด้วย Draw.io MCP, ภาพส่งออกอยู่ที่ `docs/erd.png`) หรือ ER diagram ใน `docs/API.md` หัวข้อ Data model: `tool_definitions` ลบตาม server (CASCADE), `client_configs` เก็บ snapshot เป็น JSONB, `submission_reviews` อ้างถึง server หรือ skill แบบ polymorphic
 - ข้อมูลเป็นของจริง (ตรวจเมื่อ 12 พ.ย. 2569): MCP server 44 ตัว อนุมัติแล้ว 39 (seed 10 + import จาก GitHub 29), skill 144 อนุมัติแล้ว 135 (seed 5 + import 130), tool 458 ตัว ทุกรายการ import มี `source_url`, license และ commit sha ในแถว พร้อมดาว GitHub ที่ sync มาจาก api.github.com ตัวเลขเปลี่ยนได้ถ้ามี import หรือ takedown เพิ่ม ให้เปิด Admin metrics ยืนยันก่อนพูด
 
 ## 3. เอกสาร API และ Postman (2 นาที)
