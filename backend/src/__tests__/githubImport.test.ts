@@ -373,6 +373,31 @@ describe('GitHub import: MCP servers (AC-I5)', () => {
     expect(classifyRisk('git_log', 'Commit history.')).toBe('network');
   });
 
+  it.each([
+    ['rql-query', 'Read Editor data with an RQL query, e.g. roots | r'],
+    ['screenshot-scene-view', 'Captures a screenshot from the Unity Editor Scene View.'],
+    ['search', 'Executes a standard FHIR search interaction on a given resource type.'],
+    ['duck_judge', "Have one duck evaluate and rank others' responses"],
+    ['git_branches', 'all, merged'],
+    ['kiali_list_mesh_clusters', 'Returns the list of Istio mesh clusters that Kiali can access.'],
+  ])('does not rate %s as destructive just because of a word stem in its description', (name, description) => {
+    expect(classifyRisk(name, description)).not.toBe('destructive');
+  });
+
+  it.each([
+    ['blockrun_modal', 'Isolated code execution in a BlockRun-hosted Modal sandbox'],
+    ['ctx_batch', 'Runs many commands, indexes the output, and searches it'],
+    ['rql-mutate', 'Change Editor data or call Editor operations'],
+    ['clear_conversations', 'Clear all conversation history'],
+  ])('still rates %s as destructive', (name, description) => {
+    expect(classifyRisk(name, description)).toBe('destructive');
+  });
+
+  it('does not read the header row of a markdown table as a tool', () => {
+    const readme = ['## Tools', '| Category | Tools |', '|---|---|', '| `list_things` | Lists things via the API |', '', '| Extension | Description |', '| --- | --- |', '| `read_notes` | Reads the notes file |'].join('\n');
+    expect(parseMcpReadme(readme).tools.map((t) => t.name)).toEqual(['list_things', 'read_notes']);
+  });
+
   it('reads up to 150 tools from one README', () => {
     const bullets = Array.from({ length: 160 }, (_, i) => `- **tool_${String(i).padStart(3, '0')}** - does thing ${i}`);
     expect(parseMcpReadme(['## Tools', ...bullets].join('\n')).tools).toHaveLength(150);

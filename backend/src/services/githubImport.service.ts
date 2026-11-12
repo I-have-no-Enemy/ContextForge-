@@ -304,7 +304,8 @@ function extractTools(readme: string): Array<{ name: string; description: string
   let inSection = false;
   let sectionLevel = 0;
   let last: { name: string; description: string } | null = null;
-  for (const line of readme.split(/\r?\n/)) {
+  const lines = readme.split(/\r?\n/);
+  for (const [idx, line] of lines.entries()) {
     const h = line.match(/^(#{1,6})\s+(.*)$/);
     if (h) {
       const level = h[1].length;
@@ -335,7 +336,9 @@ function extractTools(readme: string): Array<{ name: string; description: string
       continue;
     }
     const row = line.match(/^\|\s*`?([A-Za-z][\w.-]{1,63})`?\s*\|\s*(.+?)\s*\|/);
-    if (row && !/^(tool|name)$/i.test(row[1])) {
+    // A row followed by the |---| separator is the table's header ("Category | Tools"), not a tool.
+    const isHeader = /^\s*\|?\s*:?-{2,}/.test(lines[idx + 1] ?? '');
+    if (row && !isHeader && !/^(tool|name)$/i.test(row[1])) {
       last = add(row[1], row[2]);
       continue;
     }
@@ -350,9 +353,16 @@ function extractTools(readme: string): Array<{ name: string; description: string
  * so, and an unknown tool is assumed to reach the network rather than to be harmless.
  */
 export function classifyRisk(name: string, description: string): ToolRiskLevel {
-  // "wipeLogs" and "RunCommand" are split into words first; verbs match by stem so "Uninstall", "Deletes" and "purged" count.
-  const text = `${name} ${description}`.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().replace(/[_-]/g, ' ');
-  if (/\b(delet|remov|drop|destroy|truncat|kill|reset|overwrit|wip|purg|clear|exec|eval|shell|command|migrat|write|writing|edit|move|moving|renam|push|merg|deploy|install|uninstall|upload|terminat|restart|reboot|revok)/.test(text)) return ToolRiskLevel.destructive;
+  // Camel case and separators become spaces first: "wipeLogs" -> "wipe logs", "RunCommand" -> "run command".
+  const words = (t: string) => t.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().replace(/[_-]/g, ' ');
+  const nameText = words(name);
+  const text = words(`${name} ${description}`);
+  // A verb in the tool's NAME is the strongest signal, and stems are fine there ("uninstall", "purge", "evaluate").
+  const inName = /\b(delet|remov|drop|destroy|truncat|kill|reset|overwrit|wip|purg|clear|exec|eval|shell|command|migrat|mutat|writ|edit|mov|renam|push|merg|deploy|install|uninstall|upload|terminat|restart|reboot|revok)/;
+  // In the DESCRIPTION only whole verbs and phrases count: a stem would turn "Editor", "merged" or "evaluate and rank" into destructive.
+  const inDescription =
+    /\b(delete[sd]?|deleting|remove[sd]?|removing|drops?|dropped|destroy(s|ed)?|truncate[sd]?|kill(s|ed)?|wipe[sd]?|purge[sd]?|erase[sd]?|overwrit(e|es|ten|ing)|(un)?install(s|ed|ing)?|terminate[sd]?|shell|writes?|writing|modif(y|ies)|clears?|cleared)\b|\bruns? (\w+ ){0,2}(commands?|scripts?)\b|\bexecut(e|es|ing) (\w+ )?(code|commands?|scripts?|javascript|sql)\b|\b(code|command|script|shell) execution\b|\bevaluat(e|es|ing) (javascript|code)\b/;
+  if (inName.test(nameText) || inDescription.test(text)) return ToolRiskLevel.destructive;
   if (/\b(file|files|directory|directories|folder|path|disk|filesystem)\b/.test(text)) return ToolRiskLevel.filesystem;
   return ToolRiskLevel.network;
 }
