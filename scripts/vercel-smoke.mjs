@@ -89,11 +89,17 @@ if (process.argv.includes('--trace')) {
     const has = (re) => files.filter((f) => re.test(f));
     console.log(`traced ${files.length} files`);
     check(has(/^backend\/dist\/app\.js$/).length === 1, 'bundle has backend/dist/app.js');
-    check(has(/@prisma\/client\/.*index\.js$/).length > 0, 'bundle has @prisma/client');
+    check(has(/@prisma\/client\/default\.js$/).length > 0 && has(/@prisma\/client\/runtime\/library\.js$/).length > 0, 'bundle has @prisma/client and its runtime');
     const engines = has(/libquery_engine-.*\.so\.node$/);
     check(engines.some((f) => /rhel-openssl-3\.0\.x/.test(f)), 'bundle has the rhel-openssl-3.0.x Prisma engine', engines.map((f) => path.basename(f)).join(', ') || 'none traced');
-    const bcrypt = has(/bcrypt\/prebuilds\/.*\.node$/);
-    check(bcrypt.some((f) => /linux-x64/.test(f)), 'bundle has the bcrypt linux-x64 prebuild', bcrypt.map((f) => f.split('/').slice(-2).join('/')).join(', ') || 'none traced');
+    // The tracer picks bcrypt's prebuild for the machine it runs on (win32-x64 here, linux on Vercel's build).
+    // What can be checked everywhere: the package ships the Linux prebuilds, and vercel.json forces them into the bundle.
+    const shipped = path.join(root, 'node_modules/bcrypt/prebuilds/linux-x64');
+    check(fs.existsSync(shipped) && fs.readdirSync(shipped).some((f) => /glibc/.test(f)), 'bcrypt ships a linux-x64 glibc prebuild', fs.existsSync(shipped) ? fs.readdirSync(shipped).join(', ') : 'missing');
+    const inc = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8')).functions?.['api/index.js']?.includeFiles || '';
+    check(/bcrypt\/prebuilds\/linux-x64/.test(inc), 'vercel.json force-includes the bcrypt linux-x64 prebuild');
+    const traced = has(/bcrypt\/prebuilds\/.*\.node$/);
+    console.log(`info bcrypt prebuild traced on this host (${process.platform}): ${traced.map((f) => f.split('/').slice(-2).join('/')).join(', ') || 'none'}`);
     check(has(/^node_modules\/express\/index\.js$/).length === 1, 'bundle has express');
   }
 }

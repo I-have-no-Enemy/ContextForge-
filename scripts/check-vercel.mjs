@@ -33,6 +33,7 @@ const entry = exists('api/index.js') ? read('api/index.js') : '';
 check(/bodyParser:\s*false/.test(entry) && /leaveBodyToExpress/.test(entry), 'api/index.js leaves the request body to Express');
 check(/webRoot:\s*null/.test(entry), 'api/index.js serves the API only (the CDN serves the site)');
 check(/getJwtSecret\(\)/.test(entry), 'api/index.js fails fast on a missing JWT secret');
+check(/bcrypt\/prebuilds\/linux-x64/.test(cfg.functions?.['api/index.js']?.includeFiles || ''), 'function bundle force-includes the bcrypt linux-x64 prebuild');
 check(Number(cfg.functions?.['api/index.js']?.maxDuration) >= 30, 'maxDuration allows a GitHub import (>= 30 s)', String(cfg.functions?.['api/index.js']?.maxDuration));
 
 // 3. security headers on the static site must match what helmet gives the API (script-src 'self', no inline scripts)

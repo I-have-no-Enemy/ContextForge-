@@ -59,7 +59,7 @@ Never run `npm run seed` against this database (it needs `--confirm-wipe` and de
 
 ## What was and was not verified
 
-Verified on the Windows development machine, in a clean clone with `npm ci`, the same build command and a production-mode run of `api/index.js` against the real database: health, list, 404 JSON, JSON `POST` body, signed-out 401, and a file trace (the same tracer Vercel uses, `@vercel/nft`) showing the compiled backend, Prisma and the Linux engine, express and the `bcrypt` Linux prebuild in the bundle. `node scripts/check-vercel.mjs` re-checks the static settings; `node scripts/vercel-smoke.mjs --trace` repeats the run.
+Verified on the Windows development machine, in a clean clone with `npm ci`, the same build command and a production-mode run of `api/index.js` against the real database: health, list, 404 JSON, JSON `POST` body, signed-out 401, and a file trace (the same tracer Vercel uses, `@vercel/nft`) showing the compiled backend, Prisma and the Linux engine, and express in the bundle. The tracer picks `bcrypt`'s prebuild for the machine it runs on, so on Windows it listed the Windows one; the package ships the Linux prebuilds and `vercel.json` force-includes them. `node scripts/check-vercel.mjs` re-checks the static settings; `node scripts/vercel-smoke.mjs --trace` repeats the run.
 
 **Not verified, because it needs a real Vercel deployment:** that the rewrite keeps `/api/v1/...` as the request URL, that Vercel's own request helper leaves the body to Express, that the bundle really contains what the trace lists, the Node 22 build, and cold-start timing. The checklist above covers each of them.
 
