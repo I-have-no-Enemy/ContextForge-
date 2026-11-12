@@ -82,6 +82,25 @@ describe('POST /admin/submissions/approve-clean (AC-I7)', () => {
     expect((await prisma.submissionReview.findFirstOrThrow({ where: { item_id: flagged.skill_id } })).status).toBe('pending');
   });
 
+  it('treats imported MCP servers the same way: clean ones are approved, a flagged one stays in the queue', async () => {
+    const make = async (name: string, flagged: boolean) => {
+      const server = await prisma.mcpServer.create({
+        data: { name, install_command: 'npx -y @acme/mcp-x', is_verified: false, submitted_by: admin.user_id, source_url: `https://github.com/acme/${name}`, source_license: 'MIT', source_ref: 'main' },
+      });
+      await prisma.submissionReview.create({
+        data: { item_type: 'server', item_id: server.server_id, reviewer_id: admin.user_id, status: 'pending', flagged_by_scan: flagged, review_notes: 'Imported from test' },
+      });
+      return server;
+    };
+    const clean = await make('clean-server', false);
+    const flagged = await make('flagged-server', true);
+
+    const res = await call(admin, 'server');
+    expect(res.body.data).toEqual({ approved: 1, left_in_queue_flagged: 1 });
+    expect((await prisma.mcpServer.findUniqueOrThrow({ where: { server_id: clean.server_id } })).is_verified).toBe(true);
+    expect((await prisma.mcpServer.findUniqueOrThrow({ where: { server_id: flagged.server_id } })).is_verified).toBe(false);
+  });
+
   it('is idempotent: a second call approves nothing new', async () => {
     await importedSkill('clean-one', false);
     expect((await call(admin)).body.data.approved).toBe(1);

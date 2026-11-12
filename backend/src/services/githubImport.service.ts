@@ -267,12 +267,29 @@ export function parseMcpReadme(readme: string): ParsedReadme {
   return { install_command: install, env: [...env].slice(0, 10), tools: extractTools(readme) };
 }
 
+const MAX_TOOLS = 150;
+
+/**
+ * A README bullet is a tool only if it looks like one. These are the shapes that were mistaken for tools in
+ * real imports: environment variables and file formats (ALL_CAPS), script files (`loudness.py`), parameter
+ * documentation (`(string, required): ...`, `Optional boolean ...`), and category headings whose description is
+ * the actual tool name (`ECS` -> `RunCommand`).
+ */
+export function isLikelyTool(name: string, description: string): boolean {
+  const desc = description.trim();
+  if (/^[A-Z0-9_]{2,}$/.test(name)) return false;
+  if (/\.(py|js|ts|mjs|cjs|json|ya?ml|sh|md|txt|csv)$/i.test(name)) return false;
+  if (/^\(\s*(string|number|boolean|integer|array|object|optional|required)\b/i.test(desc)) return false;
+  if (/^(optional|required|set to|if true|if false|default)\b/i.test(desc)) return false;
+  if (/^[A-Z][A-Za-z]{1,11}$/.test(name) && /^[A-Za-z][A-Za-z0-9_]{3,}$/.test(desc)) return false;
+  return true;
+}
+
 function extractTools(readme: string): Array<{ name: string; description: string }> {
   const tools: Array<{ name: string; description: string }> = [];
   const seen = new Set<string>();
   const add = (name: string, description: string) => {
-    // ALL_CAPS names are environment variables mentioned in the README, not tools.
-    if (!/^[A-Za-z][\w.-]{1,63}$/.test(name) || /^[A-Z0-9_]{4,}$/.test(name) || seen.has(name) || tools.length >= 40) return null;
+    if (!/^[A-Za-z][\w.-]{1,63}$/.test(name) || seen.has(name) || tools.length >= MAX_TOOLS || !isLikelyTool(name, description)) return null;
     seen.add(name);
     const tool = { name, description: clean(description).slice(0, 300) };
     tools.push(tool);
@@ -328,8 +345,9 @@ function extractTools(readme: string): Array<{ name: string; description: string
  * so, and an unknown tool is assumed to reach the network rather than to be harmless.
  */
 export function classifyRisk(name: string, description: string): ToolRiskLevel {
-  const text = `${name} ${description}`.toLowerCase().replace(/[_-]/g, ' ');
-  if (/\b(delete|remove|drop|destroy|truncate|kill|reset|overwrite|wipe|exec|execute|eval|shell|command|migration|migrate|write|edit|move|rename|push|merge|deploy|install|upload)\b/.test(text)) return ToolRiskLevel.destructive;
+  // "wipeLogs" and "RunCommand" are split into words first; verbs match by stem so "Uninstall", "Deletes" and "purged" count.
+  const text = `${name} ${description}`.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().replace(/[_-]/g, ' ');
+  if (/\b(delet|remov|drop|destroy|truncat|kill|reset|overwrit|wip|purg|clear|exec|eval|shell|command|migrat|write|writing|edit|move|moving|renam|push|merg|deploy|install|uninstall|upload|terminat|restart|reboot|revok)/.test(text)) return ToolRiskLevel.destructive;
   if (/\b(file|files|directory|directories|folder|path|disk|filesystem)\b/.test(text)) return ToolRiskLevel.filesystem;
   return ToolRiskLevel.network;
 }
@@ -481,6 +499,17 @@ async function saveSkill(c: Ctx, info: RepoInfo, sha: string, sourceUrl: string,
   if (same && same.source_url !== sourceUrl) {
     c.summary.skipped.push({ name: base, reason: `identical content to the existing listing "${same.name}"` });
     return;
+  }
+  // The same text under another name (a fork, a bundled copy) is the same skill. Short descriptions are too generic to compare.
+  if (parsed.description.length >= 40) {
+    const twin = await c.db.aiSkill.findFirst({
+      where: { is_deleted: false, description: { equals: parsed.description, mode: 'insensitive' } },
+      select: { name: true, source_url: true },
+    });
+    if (twin && twin.source_url !== sourceUrl) {
+      c.summary.skipped.push({ name: base, reason: `same description as the existing listing "${twin.name}"` });
+      return;
+    }
   }
   const picked = await freeName((name) => c.db.aiSkill.findUnique({ where: { name }, select: { source_url: true } }), base, info.owner.toLowerCase(), sourceUrl);
   if ('skip' in picked) {
@@ -657,7 +686,9 @@ async function saveMcp(c: Ctx, cand: McpCandidate) {
     return;
   }
   const tools = parsed.tools.map((t) => ({ name: t.name, description: t.description || null, risk_level: classifyRisk(t.name, t.description) }));
-  const item: ImportedItem = { kind: 'mcp', name: picked.name, source_url: cand.sourceUrl, license: info.license, tools: tools.length };
+  // README text is untrusted and tool descriptions are read by agents (OWASP LLM01): scan what is about to be stored.
+  const scan = SecurityScanner.scanSkillContent([info.description ?? '', ...parsed.tools.map((t) => `${t.name}: ${t.description}`)].join('\n'));
+  const item: ImportedItem = { kind: 'mcp', name: picked.name, source_url: cand.sourceUrl, license: info.license, tools: tools.length, flagged_by_scan: scan.prompt_injection_detected };
   if (c.dryRun) {
     c.summary.created.push(item);
     return;
@@ -687,11 +718,12 @@ async function saveMcp(c: Ctx, cand: McpCandidate) {
           item_id: server.server_id,
           reviewer_id: c.submittedBy,
           status: ReviewStatus.pending,
-          flagged_by_scan: false,
+          flagged_by_scan: scan.prompt_injection_detected,
           review_notes:
             `Imported from ${cand.sourceUrl} (license: ${info.license ?? 'none declared'}). ` +
             `The install command and ${tools.length} tools were read from the README. ` +
-            'Tool risk levels are a keyword guess and are unconfirmed: check them before approving.',
+            'Tool risk levels are a keyword guess and are unconfirmed: check them before approving. ' +
+            (scan.prompt_injection_detected ? `SECURITY SCAN ALERT: ${scan.flags.join('; ')}` : 'Automated heuristic scan of the description and tool text found no injection flags.'),
         },
       });
     });
