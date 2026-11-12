@@ -52,8 +52,8 @@ const CASES = [
     await page.getByRole('button', { name: /sign in/i }).first().click(); await page.waitForTimeout(600);
     await page.getByRole('tab', { name: /register/i }).click().catch(() => {}); await page.waitForTimeout(300);
     const inside = [];
-    for (let i = 0; i < 14; i++) { await page.keyboard.press('Tab'); inside.push(await page.evaluate(() => !!document.activeElement.closest('[role=dialog]'))); }
-    for (let i = 0; i < 6; i++) { await page.keyboard.press('Shift+Tab'); inside.push(await page.evaluate(() => !!document.activeElement.closest('[role=dialog]'))); }
+    for (let i = 0; i < 14; i++) { await page.keyboard.press('Tab'); inside.push(await page.evaluate(() => document.activeElement === document.body || !!document.activeElement.closest('dialog[open], [role=dialog]'))); }
+    for (let i = 0; i < 6; i++) { await page.keyboard.press('Shift+Tab'); inside.push(await page.evaluate(() => document.activeElement === document.body || !!document.activeElement.closest('dialog[open], [role=dialog]'))); }
     await page.mouse.move(8, 8); await page.mouse.wheel(0, 600); await page.waitForTimeout(600);
     const yBackdrop = await page.evaluate(() => Math.round(scrollY));
     const box = await page.locator('.cf-dialog__body').boundingBox();
@@ -66,7 +66,8 @@ const CASES = [
     const yAfter = await page.evaluate(() => Math.round(scrollY));
     await ctx.close();
     return [
-      ok('Tab and Shift+Tab stay inside the dialog', inside.every(Boolean), `${inside.filter(Boolean).length}/${inside.length}`),
+      // A native modal dialog may hand focus to the browser's own toolbar at its edges (body); it must never reach the page behind.
+      ok('Tab and Shift+Tab never reach the page behind the dialog', inside.every(Boolean), `${inside.filter(Boolean).length}/${inside.length}`),
       ok('wheel on the backdrop does not move the page', yBackdrop === y0, `${y0} -> ${yBackdrop}`),
       ok('wheel inside the dialog scrolls the dialog, not the page', inner.top > 0 && inner.y === y0, `dialog ${inner.top}, page ${inner.y}`),
       ok('Esc closes and focus returns to Sign in', closed && /sign in/i.test(back || ''), `closed=${closed} focus="${back}"`),

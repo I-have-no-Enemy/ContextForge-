@@ -279,8 +279,8 @@ button.cf-tag:hover { color: var(--color-chalk); border-color: var(--color-smoke
 .site-foot a { color: var(--color-chalk); font-family: var(--font-aeonik); font-size: 14px; }
 
 /* Dialog */
-.cf-dialog-backdrop { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(8, 8, 8, 0.88); }
-.cf-dialog { width: 100%; max-width: 720px; max-height: 85vh; display: flex; flex-direction: column; background: var(--color-carbon); border: 1px solid var(--color-card-slate); border-radius: var(--radius-lg); color: var(--color-chalk); }
+/* A native <dialog>: the browser draws the backdrop (::backdrop, see glass.css), traps focus and makes the page behind inert. */
+.cf-dialog { width: min(720px, calc(100% - 32px)); max-height: 85vh; margin: auto; padding: 0; overflow: hidden; flex-direction: column; background: var(--color-carbon); border: 1px solid var(--color-card-slate); border-radius: var(--radius-lg); color: var(--color-chalk); }
 .cf-dialog__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--color-graphite); }
 .cf-dialog__title { margin: 0; font-size: var(--text-heading-sm); line-height: var(--leading-heading-sm); font-weight: 400; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .cf-dialog__desc { margin: 6px 0 0; font-family: var(--font-input); font-size: 13px; color: var(--color-smoke); overflow-wrap: anywhere; }
@@ -468,7 +468,8 @@ a.row__name:hover { text-decoration: underline; text-underline-offset: 4px; }
 
 /* While a dialog is open the page behind it does not scroll; the dialog body scrolls instead. */
 html.is-scroll-locked { overflow: hidden; scrollbar-gutter: stable; }
-.cf-dialog-backdrop { overscroll-behavior: contain; }
+.cf-dialog { overscroll-behavior: contain; }
+.cf-dialog[open] { display: flex; }
 .cf-dialog__body { overscroll-behavior: contain; }
 
 /* Skill detail: outline of a long SKILL.md */
