@@ -27,3 +27,5 @@ Chromium is found in `%LOCALAPPDATA%\ms-playwright` or `~/.cache/ms-playwright`;
 6. Stand-alone controls are at least 24px tall (WCAG 2.5.8)
 7. Lanes show 8 tiles or fewer and the totals match the API
 8. A count of 1 reads "1 export", not "1 exports"
+
+Against a server started with `NODE_ENV=production` the default 60 requests per minute per IP is used up part-way through the run and case 2 times out. Start that server with `RATE_LIMIT_PER_MIN=100000` for the check, and point both addresses at it: `BASE=http://localhost:5058 API=http://localhost:5058/api/v1 npm run ui:check`.
