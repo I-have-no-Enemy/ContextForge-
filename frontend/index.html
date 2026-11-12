@@ -7,15 +7,7 @@
     <meta name="theme-color" content="#16181d" />
     <meta name="description" content="Check what an MCP server or AI skill can reach before your agent runs it, then export one config for your client." />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <script>
-      // Theme before first paint: saved choice, else the system setting (dark by default).
-      (function () {
-        var t = null;
-        try { t = localStorage.getItem('cf-theme'); } catch (e) {}
-        if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-        document.documentElement.dataset.theme = t;
-      })();
-    </script>
+    <script src="/theme-init.js"></script>
   </head>
   <body class="cf-canvas">
     <div id="root"></div>

@@ -5,7 +5,7 @@
  *   GitHub stars/contributors start at 0 and are filled by POST /admin/sync/github.
  * - Account passwords come from SEED_ADMIN_PASSWORD / SEED_MAINTAINER_PASSWORD, or are generated
  *   and written to prisma/seed-accounts.local.json (gitignored). They are never printed.
- * - WIPES all six tables of the schema in DATABASE_URL first.
+ * - WIPES all six tables of the schema in DATABASE_URL first, so it needs --confirm-wipe unless the schema is ctxforge_test.
  */
 import '../src/loadEnv.js';
 import { Prisma, PrismaClient, ToolRiskLevel, UserRole } from '@prisma/client';
@@ -16,6 +16,9 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { BCRYPT_ROUNDS } from '../src/config/env.js';
 import { SecurityScanner } from '../src/services/scanner.service.js';
+import { assertSeedAllowed } from '../src/config/seedGuard.js';
+
+assertSeedAllowed(process.env.DATABASE_URL, process.argv.slice(2)); // before any client is created
 
 const prisma = new PrismaClient();
 const ALL_CLIENTS = ['claude_desktop', 'cursor', 'cline', 'antigravity'];
