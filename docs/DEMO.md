@@ -1,4 +1,4 @@
-# สคริปต์เดโม ContextForge (นำเสนอ 19-20 พ.ย. 2569)
+# สคริปต์เดโม ContextForge (นำเสนอ 18 พ.ย. 2569 เวลา 11.00 น.)
 
 ลำดับนี้ตรงกับรายการตรวจความพร้อมในข้อกำหนดวิชา 06016418: ฐานข้อมูลบน cloud พร้อมข้อมูล, เอกสาร API / Postman, การปฏิเสธด้วย 401/403 และเดโมสร้าง ค้นหา แก้ไข ลบ ใช้เวลาประมาณ 12 นาที
 
@@ -15,7 +15,7 @@ npm run dev                            # API :5000 + เว็บ :3000
   - `admin@contextforge.dev` (admin)
   - `maintainer@contextforge.dev` (developer เจ้าของ server และ skill ที่ seed ไว้): `pwsh scripts/get-password.ps1 maintainer@contextforge.dev`
 - เปิดแท็บไว้ 4 แท็บ: เว็บ `http://localhost:3000`, Supabase Table Editor, Postman, VS Code ที่ `docs/API.md`
-- ถ้าอยากเริ่มจากข้อมูลสะอาด: `npm run seed --workspace=backend` แล้ว `npm run sync:github --workspace=backend` (seed จะลบข้อมูลเดิมทั้งหมดและสุ่มรหัสใหม่)
+- **ห้ามรัน `npm run seed` กับฐานข้อมูลนี้ก่อนนำเสนอ**: seed ลบทุกตารางรวมข้อมูลที่ import จาก GitHub (39 server, 135 skill) และบัญชีจริง ต้องใส่ `-- --confirm-wipe` ถึงจะรันได้ (ตัวกันที่ `backend/src/config/seedGuard.ts`) ใช้เฉพาะเมื่อตั้งใจเริ่มใหม่ทั้งหมด
 
 ## 1. ปัญหาและระบบ (1 นาที)
 
@@ -24,14 +24,14 @@ AI agent อย่าง Claude, Cursor, Cline, Antigravity ต่อ MCP server
 ## 2. ฐานข้อมูล (2 นาที)
 
 - เปิด Supabase → Table Editor ให้เห็น 6 ตาราง: `users`, `mcp_servers`, `tool_definitions`, `ai_skills`, `client_configs`, `submission_reviews`
-- ชี้ ER diagram ใน `docs/API.md` หัวข้อ Data model: `tool_definitions` ลบตาม server (CASCADE), `client_configs` เก็บ snapshot เป็น JSONB, `submission_reviews` อ้างถึง server หรือ skill แบบ polymorphic
-- ข้อมูลเป็นของจริง: MCP server 10 ตัวที่ติดตั้งได้จริง พร้อมดาว GitHub ที่ sync มาจาก api.github.com
+- เปิด `docs/erd.drawio` (สร้างด้วย Draw.io MCP, ภาพส่งออกอยู่ที่ `docs/erd.png`) หรือ ER diagram ใน `docs/API.md` หัวข้อ Data model: `tool_definitions` ลบตาม server (CASCADE), `client_configs` เก็บ snapshot เป็น JSONB, `submission_reviews` อ้างถึง server หรือ skill แบบ polymorphic
+- ข้อมูลเป็นของจริง (ตรวจเมื่อ 12 พ.ย. 2569): MCP server 44 ตัว อนุมัติแล้ว 39 (seed 10 + import จาก GitHub 29), skill 144 อนุมัติแล้ว 135 (seed 5 + import 130), tool 458 ตัว ทุกรายการ import มี `source_url`, license และ commit sha ในแถว พร้อมดาว GitHub ที่ sync มาจาก api.github.com ตัวเลขเปลี่ยนได้ถ้ามี import หรือ takedown เพิ่ม ให้เปิด Admin metrics ยืนยันก่อนพูด
 
 ## 3. เอกสาร API และ Postman (2 นาที)
 
-- เปิด `docs/API.md` ตาราง Core Endpoints 29 เส้น ครบ Method, Path, Description, Role, Status
-- Postman: import `docs/postman/ContextForge.postman_collection.json` กับ `local.postman_environment.json` ใส่ `adminPassword` ใน environment แล้วกด Run collection (50 request)
-- ทางเลือกที่ไม่แตะข้อมูลจริง: `npm run e2e --workspace=backend` รันทั้งชุดบน schema ทดสอบ ผลล่าสุด 50 request, 74 assertion ผ่านหมด
+- เปิด `docs/API.md` ตาราง Core Endpoints 31 เส้น ครบ Method, Path, Description, Role, Status
+- Postman: import `docs/postman/ContextForge.postman_collection.json` กับ `local.postman_environment.json` ใส่ `adminPassword` ใน environment แล้วกด Run collection (55 request)
+- ทางเลือกที่ไม่แตะข้อมูลจริง: `npm run e2e --workspace=backend` รันทั้งชุดบน schema ทดสอบ ผลล่าสุด 55 request, 81 assertion ผ่านหมด
 
 ## 4. สิทธิ์: 401 และ 403 (2 นาที)
 
@@ -64,8 +64,10 @@ AI agent อย่าง Claude, Cursor, Cline, Antigravity ต่อ MCP server
 ## 6. การทดสอบ (1 นาที)
 
 ```bash
-npm test --workspace=backend   # 111 tests, 13 files, ยิง PostgreSQL จริงใน schema ctxforge_test
+npm test --workspace=backend   # 197 tests, 16 files, ยิง PostgreSQL จริงใน schema ctxforge_test
 ```
+
+ชุดตรวจ UI (ทางเลือก): `npm run ui:check` เปิด Chromium ตรวจ 8 เรื่อง เช่น dialog ล็อกพื้นหลัง, กลับตำแหน่งเดิมหลังเปิดรายการ, `h1` ทุกหน้า (ต้องมี API :5000 และเว็บ :4173 รันอยู่ ดู `docs/UI_CHECKS.md`)
 
 ชี้ 2 test ที่น่าสนใจ: race ของ config generation ที่ใช้ row lock จริง (`configs.test.ts` AC4) และ owner แก้ skill ที่อนุมัติแล้วต้องกลับไปรีวิวใหม่ (`skills.test.ts` AC1)
 

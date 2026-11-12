@@ -24,7 +24,7 @@ Express 4 + TypeScript, Prisma 5, PostgreSQL 17 (Supabase), zod, JWT in an HttpO
 npm install
 cp .env.example .env      # set DATABASE_URL (Supabase session pooler URI) and JWT_SECRET (32+ chars)
 npm run db:check --workspace=backend
-npm run seed --workspace=backend          # WIPES the tables, loads 10 real MCP servers and 5 skills
+npm run seed --workspace=backend -- --confirm-wipe   # WIPES the tables, loads 10 real MCP servers and 5 skills
 npm run sync:github --workspace=backend   # real GitHub stars and contributors
 npm run dev                               # API http://localhost:5000, web http://localhost:3000
 ```
@@ -39,11 +39,15 @@ The seed generates account passwords into `backend/prisma/seed-accounts.local.js
 | `npm run e2e` | Seeds the test schema, starts the API with rate limits on, runs the Postman collection with newman |
 | `npm run dev:testdb` | Real API on the seeded test schema, for trying the UI without changing real data |
 | `npm run db:check` | Connectivity and required-index check; prints no secrets |
-| `npm run seed` | Resets and seeds the schema in `DATABASE_URL` |
+| `npm run seed -- --confirm-wipe` | Resets and seeds the schema in `DATABASE_URL`; the flag is required unless the schema is `ctxforge_test` |
 | `npm run sync:github` | One-off GitHub metrics sync |
 | `npm run import:github -- <url> --kind skill\|mcp [--limit N] [--min-stars N] [--apply]` | Import from a GitHub URL; dry run unless `--apply` |
 
 Root: `node scripts/check-docs.mjs` (doc checks), `node scripts/build-postman.mjs` (regenerates the Postman files).
+
+## Deploying
+
+`render.yaml` is a Render Blueprint for one web service that serves the site and the API on one origin. Steps, environment variables and what was not verified are in [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Documentation
 

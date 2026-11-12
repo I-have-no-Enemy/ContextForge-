@@ -615,3 +615,24 @@
   - ทุก takedown เป็น soft delete + `is_verified = false` + review สถานะ rejected ขึ้นต้น `[TAKEDOWN]` (ทำด้วย SQL เพราะไม่มีรหัส admin)
 - **ผลบนหน้าเว็บ**: 39 servers, 135 skills, 457 tools (lanes 9/319/40/89 จาก 9/402/47/80), ไม่มี server ที่ไม่มี tool, dry-run รอบสุดท้ายไม่เหลือรายการ
 - **หมายเหตุกระบวนการ**: คำสั่ง takedown 4 server ชุดแรกถูกรายงานว่า "ปฏิเสธ" แต่ถูกรันไปแล้ว (ตรวจพบจากการนับแถวที่ได้ 0 ในคำสั่งถัดมา) ผลตรงกับที่ตะวันอนุมัติ ไม่มีรายการซ้ำ
+
+---
+
+### Entry #024: เตรียม deploy บน Render (branch `feat/deploy-prep`)
+- **วันที่**: `2026-11-12`
+- **ผู้ดำเนินการ**: Claude Code (แผนงาน `contextforge-deploy-prep`) ตามที่ตะวันสั่ง "deploy บน Render ทำข้อ 1-5"
+- **สิ่งที่แก้ในโค้ด**:
+  - `TRUST_PROXY` (ค่าเริ่มต้น 0) ตั้ง `trust proxy` ของ Express; หลัง load balancer ของ host ผู้ใช้แต่ละคนได้โควตา rate limit แยกกัน และเมื่อเป็น 0 ส่วนหัว `X-Forwarded-For` ที่ปลอมมาไม่มีผล (test ทั้งสองทิศ)
+  - API เสิร์ฟ `frontend/dist` เอง (`/assets` cache แบบ immutable, path ที่ไม่มีนามสกุลและไม่ใช่ `/api` ได้ `index.html`, ไฟล์หายและ `/api/*` ที่ไม่มีได้ JSON 404) จึงอยู่ origin เดียวกับ cookie `SameSite=strict`
+  - สคริปต์ธีมใน `index.html` ย้ายไป `frontend/public/theme-init.js` เพราะ CSP ของ helmet ห้าม inline script (มี test กันไม่ให้ใส่กลับ)
+  - ไอคอนแท็บชี้ `/vite.svg` ซึ่งไม่มีไฟล์ (404) เปลี่ยนเป็น `favicon.svg` ที่เพิ่มใหม่
+  - `npm run seed` ล้าง 6 ตาราง ตอนนี้ต้องใส่ `--confirm-wipe` เว้นแต่ schema เป็น `ctxforge_test` (`config/seedGuard.ts`, error ไม่พิมพ์ connection string)
+  - `npm audit fix` + `bcrypt` 5 -> 6 + `express` 4.22.3: ช่องโหว่ production จาก 7 เหลือ 1 (`zod` ต้องข้ามเป็น major 4; body จำกัด 2 MB จึงเลื่อนไปทำแยก)
+  - `render.yaml`, `docs/DEPLOY.md`, `npm run db:deploy`, `TRUST_PROXY` ใน `.env.example`
+- **ผลการตรวจ**: `npm test` 197/197, `npm run e2e` 81 assertion ผ่าน, build ทั้งสอง workspace ผ่าน, `check-docs` ผ่าน; บูต `NODE_ENV=production` origin เดียว: health 200, ไม่มี CSP violation ใน Chromium 7 route + dialog, deep link หลัง reload ผ่าน, `ui:check` 8/8 เขียว (ต้องตั้ง `RATE_LIMIT_PER_MIN` สูงเพราะโควตา 60/นาทีหมดกลางชุดตรวจ)
+- **ยังไม่ได้ตรวจ**: build บน Render จริง (ในเครื่องใช้ Node 26, `render.yaml` ตั้ง Node 22), จำนวน proxy hop หน้า Render (ถ้า rate limit ล็อกทุกคนพร้อมกันให้ตั้ง `TRUST_PROXY=2`), ความเร็ว cold start ของแผนฟรี
+- **เทียบกับ Vercel** (ข้อมูลจากเอกสาร Vercel ที่ค้นวันนี้ + การวิเคราะห์โค้ดของเราเอง):
+  - รองรับ: Express ทำงานเป็น Vercel Function ได้เมื่อมี entrypoint ชื่อที่ระบบรู้จัก (เช่น `src/index.ts`); Fluid compute เปิดเป็นค่าเริ่มต้นสำหรับโปรเจกต์ใหม่; ตั้ง `maxDuration` ได้ใน `vercel.json`; แผน Hobby เลือกได้ 1 region
+  - ต้องแก้โค้ดก่อน (วิเคราะห์จากโค้ดนี้ ยังไม่ได้ลองบน Vercel): (1) rate limiter เป็น `Map` ในโปรเซส ใช้ไม่ได้เมื่อมีหลาย instance ต้องย้ายไปที่เก็บร่วมหรือ rate limiting ของ Vercel; (2) Prisma ต่อ Supabase ต้องใช้ pooler และตั้ง `binaryTargets` ให้ตรง runtime; (3) admin import ยิง GitHub หลายสิบ request ต่อครั้ง ต้องตั้ง `maxDuration` ให้พอ; (4) แยก frontend เป็น static output และ rewrite `/api/*` ไปที่ function เพื่อให้คง origin เดียว
+  - สรุป: ขึ้น Vercel ได้ แต่เป็นงานแก้โค้ดเพิ่ม 4 จุดข้างบน ขณะที่ Render ใช้ service เดียวได้เลยโดยไม่แก้โค้ด จึงเลือก Render ก่อน
+
