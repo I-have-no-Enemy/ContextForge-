@@ -1,0 +1,12 @@
+# Not needed to build or run the site; keeps the upload small.
+design
+docs
+specs
+scripts/ui-checks
+.playwright-mcp
+backend/src/__tests__
+*.drawio
+*.postman_collection.json
+.env
+.env.*
+!.env.example
