@@ -48,6 +48,8 @@ export class SkillController {
             tags: true,
             downloads_count: true,
             created_at: true,
+            source_url: true,
+            source_license: true,
             user: { select: { email: true } },
           },
         }),

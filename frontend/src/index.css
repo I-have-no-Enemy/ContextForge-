@@ -384,7 +384,9 @@ textarea.cf-input { resize: vertical; }
 .facts dt, .facts dd { margin: 0; padding: 14px 20px; border-bottom: 1px solid var(--color-graphite); font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
 .facts dt { font-family: var(--font-input); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--color-smoke); }
 .facts dt:last-of-type, .facts dd:last-of-type { border-bottom: 0; }
-.ext-link { color: var(--color-chalk); text-underline-offset: 3px; display: inline-flex; gap: 6px; align-items: center; }
+.ext-link { color: var(--color-chalk); text-decoration: underline; text-underline-offset: 3px; display: inline-flex; gap: 6px; align-items: center; min-height: 24px; } /* WCAG 2.5.8 and a link cue that is not only the icon */
+#browse-h:focus { outline: none; }
+.cf-lic { font-family: var(--font-input); font-size: 12px; color: var(--color-smoke); }
 .tools__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
 .tools__head h2 { margin: 0; font-size: var(--text-heading-sm); font-weight: 400; }
 .tools__list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--color-graphite); border-radius: var(--radius-lg); }
@@ -468,3 +470,12 @@ a.row__name:hover { text-decoration: underline; text-underline-offset: 4px; }
 html.is-scroll-locked { overflow: hidden; scrollbar-gutter: stable; }
 .cf-dialog-backdrop { overscroll-behavior: contain; }
 .cf-dialog__body { overscroll-behavior: contain; }
+
+/* Skill detail: outline of a long SKILL.md */
+.skill-outline { border: 1px solid var(--color-graphite); border-radius: var(--radius-md); padding: 8px 14px; }
+.skill-outline summary { cursor: pointer; min-height: 24px; padding-block: 4px; font-family: var(--font-input); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--color-smoke); }
+.skill-outline ul { list-style: none; margin: 8px 0 4px; padding: 0; display: grid; gap: 2px; max-height: 40vh; overflow: auto; overscroll-behavior: contain; }
+.skill-outline li.lv2 { padding-left: 14px; }
+.skill-outline li.lv3 { padding-left: 28px; }
+.skill-outline .linkish { text-align: left; font-size: 14px; text-decoration: none; }
+.skill-outline .linkish:hover { text-decoration: underline; }

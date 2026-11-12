@@ -154,6 +154,7 @@ export function AdminView() {
     return (
       <section className="section pg">
         <EmptyState
+          level={1}
           heading={user ? 'Admins only' : 'Sign in as an admin'}
           action={
             !user && (

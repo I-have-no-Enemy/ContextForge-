@@ -54,6 +54,7 @@ export function WorkspaceView({ tab }: { tab: Tab }) {
     return (
       <section className="section pg">
         <EmptyState
+          level={1}
           heading="Sign in to see your workspace"
           action={
             <Button variant="primary" size="sm" onClick={requestSignIn}>

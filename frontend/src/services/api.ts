@@ -247,6 +247,15 @@ export interface ListQuery {
   client?: string;
 }
 export const listServers = (q: ListQuery = {}) => request<McpServer[]>(`/servers${qs({ ...q })}`);
+/** Every page, for the landing lanes: totals must not depend on how many servers fit in one response. */
+export async function listAllServers(): Promise<McpServer[]> {
+  const all: McpServer[] = [];
+  for (let page = 1; ; page++) {
+    const r = await listServers({ limit: 100, page });
+    all.push(...r.data);
+    if (!r.pagination || page >= r.pagination.totalPages) return all;
+  }
+}
 export const myServers = (page = 1) => request<McpServer[]>(`/servers/me${qs({ page, limit: 50 })}`);
 export const getServer = (id: string) => get<McpServer>(`/servers/${enc(id)}`);
 export interface ServerInput {

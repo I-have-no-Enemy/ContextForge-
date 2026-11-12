@@ -82,6 +82,7 @@ Errors use the same shape with `success: false` and `error: { code, message, det
 - **MCP servers.** The install command and tool list are read from the README. An install command is kept only if it is a plain `npx`, `uvx` or `docker run` line without shell syntax. Tool risk levels are a keyword guess and the review note says so. A server whose README gives no safe install command or no tool list is skipped and reported, not guessed.
 - **Idempotent.** Importing the same URL again creates nothing: items with the same name and source are reported as `already imported`. A name used by another listing gets the repository owner as a suffix.
 - **Quota.** Without `GITHUB_PAT` GitHub allows 60 REST calls and 10 searches per hour. When the quota runs out the response is `200` with `partial: true` and `stopped_reason`; items saved before that stay, and running it again continues.
+- **Where it shows.** `GET /servers` and `GET /skills` return `source_url` and `source_license` for imported listings (both are `null` for listings submitted by hand), so a list can show the licence without opening each item.
 - **Approving.** `POST /admin/submissions/approve-clean` with `{ "item_type": "skill" | "server" }` approves the pending imports with no scanner flag and leaves the rest. It never touches a listing that was submitted by hand.
 
 ## Data model

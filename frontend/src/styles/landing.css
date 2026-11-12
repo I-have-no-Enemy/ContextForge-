@@ -408,7 +408,10 @@
 }
 .lane-tile b {
   font: 500 0.82rem / 1.3 var(--font-mono);
-  overflow-wrap: anywhere;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis; /* a name is cut at the end, never in the middle; the full name is in the tile's title */
+  white-space: nowrap;
 }
 .lane-tile span {
   font-size: 0.75rem;

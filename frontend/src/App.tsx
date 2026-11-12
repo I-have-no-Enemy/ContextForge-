@@ -27,6 +27,7 @@ class PageBoundary extends Component<{ children: ReactNode; resetKey: string }, 
     return (
       <section className="section pg">
         <EmptyState
+          level={1}
           heading="This page hit an error"
           action={
             <Button variant="ghost" size="sm" onClick={() => window.location.reload()}>
@@ -57,6 +58,7 @@ function Page({ route }: { route: Route }) {
       return (
         <section className="section pg">
           <EmptyState
+            level={1}
             heading="Page not found"
             action={
               <Button variant="ghost" size="sm" onClick={() => navigate(href.browse())}>

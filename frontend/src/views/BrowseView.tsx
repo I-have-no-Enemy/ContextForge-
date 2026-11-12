@@ -3,6 +3,7 @@ import { RefreshCw } from '../components/icons';
 import * as api from '../services/api';
 import type { AiSkill, McpServer, Pagination } from '../services/api';
 import { href } from '../lib/router';
+import { plural } from '../lib/utils';
 import { browseMemory } from '../lib/browseMemory';
 import { scrollPageTo } from '../lib/smoothScroll';
 import { CLIENTS, useCart } from '../lib/cart';
@@ -135,7 +136,11 @@ export function BrowseView() {
   const openRegistry = (next: 'servers' | 'skills') => {
     setTab(next);
     // Wait one frame so the tab content has rendered before scrolling to it.
-    window.requestAnimationFrame(() => document.getElementById('browse')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    window.requestAnimationFrame(() => {
+      document.getElementById('browse')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // The page moved, so the keyboard must move with it: the next Tab starts in the registry, not back in the lanes.
+      document.getElementById('browse-h')?.focus({ preventScroll: true });
+    });
   };
 
   const cards =
@@ -151,9 +156,10 @@ export function BrowseView() {
             verified={s.is_verified ?? true}
             risk={maxRisk(toolLevels(s))}
             stats={[
-              { label: 'stars', value: s.github_stars },
-              { label: 'exports', value: s.downloads_count },
+              { label: plural(s.github_stars, 'star'), value: s.github_stars },
+              { label: plural(s.downloads_count, 'export'), value: s.downloads_count },
             ]}
+            license={s.source_url ? (s.source_license ?? 'No license') : undefined}
             selected={cart.has(s.id)}
             onToggle={() => cart.toggle({ id: s.id, kind: 'mcp', name: s.name })}
           />
@@ -168,7 +174,8 @@ export function BrowseView() {
             tags={k.tags?.length ? k.tags.slice(0, 4) : k.compatible_clients}
             verified={k.is_verified ?? true}
             flagged={Boolean(k.scan_flags?.prompt_injection_detected)}
-            stats={[{ label: 'exports', value: k.downloads_count }]}
+            stats={[{ label: plural(k.downloads_count, 'export'), value: k.downloads_count }]}
+            license={k.source_url ? (k.source_license ?? 'No license') : undefined}
             selected={cart.has(k.id)}
             onToggle={() => cart.toggle({ id: k.id, kind: 'skill', name: k.name, clients: k.compatible_clients })}
           />
@@ -182,7 +189,9 @@ export function BrowseView() {
       <section className="section pg" id="browse" aria-labelledby="browse-h">
         <div className="sec-h">
           <div>
-            <h2 id="browse-h">Browse the registry</h2>
+            <h2 id="browse-h" tabIndex={-1}>
+              Browse the registry
+            </h2>
             <p>
               Servers show their highest-risk tool. Skills show the clients they run in. Open a card for its tools and
               source, or add it to the config cart.

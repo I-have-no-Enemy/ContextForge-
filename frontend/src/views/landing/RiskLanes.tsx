@@ -37,10 +37,10 @@ export function RiskLanes({ serverTotal, skillTotal, onOpen }: RiskLanesProps) {
 
   useEffect(() => {
     api
-      .listServers({ limit: 100 })
-      .then((r) => {
-        browseMemory.laneServers = r.data;
-        setServers(r.data);
+      .listAllServers()
+      .then((all) => {
+        browseMemory.laneServers = all;
+        setServers(all);
       })
       .catch(() => setServers([]));
   }, []);
@@ -115,7 +115,7 @@ export function RiskLanes({ serverTotal, skillTotal, onOpen }: RiskLanesProps) {
                 <ul className="lane__list">
                   {shown.map((t) => (
                     <li key={`${t.server.id}-${t.name}`}>
-                      <a className="lane-tile" href={href.server(t.server.id)}>
+                      <a className="lane-tile" href={href.server(t.server.id)} title={`${t.name} (${t.server.name})`}>
                         <b>{t.name}</b>
                         <span>{t.server.name}</span>
                       </a>

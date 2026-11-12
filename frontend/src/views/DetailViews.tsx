@@ -45,6 +45,7 @@ function NotFound({ kind, error }: { kind: string; error: Error }) {
   const status = error instanceof api.ApiError ? error.status : 0;
   return (
     <EmptyState
+      level={1}
       heading={status === 404 || status === 400 ? `${kind} not found` : `Could not load this ${kind.toLowerCase()}`}
       action={
         <Button variant="ghost" size="sm" onClick={() => navigate(href.browse())}>
@@ -174,7 +175,8 @@ export function ServerDetailView({ id }: { id: string }) {
 
         <div className="tools">
           <div className="tools__head">
-            <h2>Tools ({tools.length})</h2>
+            {/* ponytail: the importer used to cut tool lists at 40, so exactly 40 may be truncated; drop the "+" once those servers are re-imported */}
+            <h2>Tools ({tools.length === 40 ? '40+' : tools.length})</h2>
             {manage && (
               <Button variant="ghost" size="sm" icon={Plus} onClick={() => setAddingTool(true)}>
                 Add tool

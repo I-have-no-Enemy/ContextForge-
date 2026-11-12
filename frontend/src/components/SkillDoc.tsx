@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useId, useMemo, type ReactNode } from 'react';
 
 /**
  * Reads a SKILL.md as a document. Skill text is untrusted (OWASP LLM01/LLM02), so this builds React elements
@@ -103,33 +103,52 @@ export function parseSkillDoc(source: string): Block[] {
 }
 
 export function SkillDoc({ source }: { source: string }) {
-  const blocks = parseSkillDoc(source);
+  const uid = useId();
+  const blocks = useMemo(() => parseSkillDoc(source), [source]);
   if (blocks.length === 0) return <p className="cf-muted">This skill file has no readable content.</p>;
+
+  // A long skill is a long page and the hash belongs to the router, so the outline scrolls instead of linking.
+  const outline = blocks.flatMap((b, i) => (b.t === 'h' && b.level <= 3 ? [{ id: `${uid}-${i}`, text: b.text.replace(/[`*]/g, ''), level: b.level }] : []));
+  const jump = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   return (
     <div className="skill-doc">
+      {outline.length >= 6 && (
+        <details className="skill-outline">
+          <summary>On this page ({outline.length})</summary>
+          <ul data-lenis-prevent>
+            {outline.map((h) => (
+              <li key={h.id} className={`lv${h.level}`}>
+                <button type="button" className="linkish" onClick={() => jump(h.id)}>
+                  {h.text}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       {blocks.map((b, i) => {
         switch (b.t) {
           case 'h': {
             // The page title is the h1; the file's own "#" becomes h2.
             const Tag = `h${Math.min(b.level + 1, 6)}` as 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
-            return <Tag key={i}>{inline(b.text)}</Tag>;
+            return (
+              <Tag key={i} id={`${uid}-${i}`}>
+                {inline(b.text)}
+              </Tag>
+            );
           }
           case 'ul':
+          case 'ol': {
+            const List = b.t;
             return (
-              <ul key={i}>
+              <List key={i}>
                 {b.items.map((it, j) => (
                   <li key={j}>{inline(it)}</li>
                 ))}
-              </ul>
+              </List>
             );
-          case 'ol':
-            return (
-              <ol key={i}>
-                {b.items.map((it, j) => (
-                  <li key={j}>{inline(it)}</li>
-                ))}
-              </ol>
-            );
+          }
           case 'quote':
             return <blockquote key={i}>{inline(b.text)}</blockquote>;
           case 'code':
