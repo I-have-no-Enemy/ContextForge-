@@ -602,3 +602,16 @@
 - **Dialog**: เปลี่ยนเป็น `<dialog>.showModal()` เนทีฟ (ถอด focus trap/focusin ที่เขียนเอง ~45 บรรทัด) คงตัวล็อกการเลื่อนของหน้าไว้ เพราะ modal dialog ไม่ล็อกการเลื่อนของหน้าเอง ที่ขอบ dialog Tab ส่งต่อให้ UI ของเบราว์เซอร์ (ไม่ใช่หน้าหลังฉาก) ตามธรรมชาติของ modal เนทีฟ
 - **สคริปต์ข้อมูลเดิม**: `npm run reclassify:imported` (dry-run, `--apply` สำรอง JSON ก่อน, ไม่แตะ `is_verified`, ไม่ลดระดับ) ผล dry-run บนข้อมูลจริง: 81 รายการที่ไม่ใช่ tool, 15 รายการยกระดับ, 4 server เหลือ 0 tool (alibaba-cloud-ops-mcp-server, desktopcommandermcp, ffmpeg-skill, k8s-mcp-server) ยังไม่ได้ apply รอตะวัน
 - **ผลการตรวจ**: `npm test` 175/175, `npm run e2e` 81 assertion ผ่าน, `tsc` และ `vite build` ผ่าน, `check-docs` ผ่าน, `ui:check` 8/8 เขียว
+
+---
+
+### Entry #023: ข้อมูลจริงหลัง review: ลบ tool ปลอม ยกระดับความเสี่ยง takedown (branch `fix/review-round2`)
+- **วันที่**: `2026-11-12`
+- **ผู้ดำเนินการ**: Claude Code ตามที่ตะวันอนุมัติตาราง dry-run และสั่งให้ takedown `template-skill` กับสกิลซ้ำเพิ่ม
+- **ที่ apply กับ Supabase `public`**:
+  - `reclassify:imported --apply`: ลบ 81 รายการที่ไม่ใช่ tool และยกระดับ 15 รายการ (สำรองที่ `06_RESOURCES/02_REFERENCE_ASSETS/Generated_Media/2026-11-12_review-fixes/reclassify-backup.json`)
+  - takedown 4 server ที่เหลือ tool 0 ตัว: `alibaba-cloud-ops-mcp-server`, `desktopcommandermcp`, `ffmpeg-skill`, `k8s-mcp-server`
+  - takedown 4 สกิล: `template-skill` (คำอธิบายยังเป็น "Replace with description..."), `artifacts-builder` และ `mcp-builder` (สำเนา mirror ของ ComposioHQ; ฉบับต้นทาง `web-artifacts-builder` และ `mcp-builder-anthropics` ยังอยู่), `impeccable-pbakaus` (คู่ของ `impeccable` จาก repo เดียวกัน เก็บชื่อที่สะอาดกว่า)
+  - ทุก takedown เป็น soft delete + `is_verified = false` + review สถานะ rejected ขึ้นต้น `[TAKEDOWN]` (ทำด้วย SQL เพราะไม่มีรหัส admin)
+- **ผลบนหน้าเว็บ**: 39 servers, 135 skills, 457 tools (lanes 9/319/40/89 จาก 9/402/47/80), ไม่มี server ที่ไม่มี tool, dry-run รอบสุดท้ายไม่เหลือรายการ
+- **หมายเหตุกระบวนการ**: คำสั่ง takedown 4 server ชุดแรกถูกรายงานว่า "ปฏิเสธ" แต่ถูกรันไปแล้ว (ตรวจพบจากการนับแถวที่ได้ 0 ในคำสั่งถัดมา) ผลตรงกับที่ตะวันอนุมัติ ไม่มีรายการซ้ำ
