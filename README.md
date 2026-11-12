@@ -47,7 +47,10 @@ Root: `node scripts/check-docs.mjs` (doc checks), `node scripts/build-postman.mj
 
 ## Deploying
 
-`render.yaml` is a Render Blueprint for one web service that serves the site and the API on one origin. Steps, environment variables and what was not verified are in [docs/DEPLOY.md](docs/DEPLOY.md).
+Two hosts are prepared; pick one.
+
+- **Vercel**: `vercel.json` and `api/index.js` serve the site from the CDN and the API as one function. Steps and checks: [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md). Static check: `npm run check:vercel`; local rehearsal: `npm run vercel:smoke`.
+- **Render**: `render.yaml` is a Blueprint for one web service that serves the site and the API on one origin. Steps and what was not verified: [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Documentation
 

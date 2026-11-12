@@ -19,7 +19,9 @@
     "db:migrate": "npm run prisma:migrate --workspace=backend",
     "db:deploy": "npm run prisma:deploy --workspace=backend",
     "db:seed": "npm run seed --workspace=backend",
-    "ui:check": "node scripts/ui-checks/run.mjs"
+    "ui:check": "node scripts/ui-checks/run.mjs",
+    "check:vercel": "node scripts/check-vercel.mjs",
+    "vercel:smoke": "node scripts/vercel-smoke.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

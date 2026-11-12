@@ -636,3 +636,20 @@
   - ต้องแก้โค้ดก่อน (วิเคราะห์จากโค้ดนี้ ยังไม่ได้ลองบน Vercel): (1) rate limiter เป็น `Map` ในโปรเซส ใช้ไม่ได้เมื่อมีหลาย instance ต้องย้ายไปที่เก็บร่วมหรือ rate limiting ของ Vercel; (2) Prisma ต่อ Supabase ต้องใช้ pooler และตั้ง `binaryTargets` ให้ตรง runtime; (3) admin import ยิง GitHub หลายสิบ request ต่อครั้ง ต้องตั้ง `maxDuration` ให้พอ; (4) แยก frontend เป็น static output และ rewrite `/api/*` ไปที่ function เพื่อให้คง origin เดียว
   - สรุป: ขึ้น Vercel ได้ แต่เป็นงานแก้โค้ดเพิ่ม 4 จุดข้างบน ขณะที่ Render ใช้ service เดียวได้เลยโดยไม่แก้โค้ด จึงเลือก Render ก่อน
 
+---
+
+### Entry #025: เตรียมไฟล์ deploy ขึ้น Vercel (branch `feat/vercel-prep`, แตกจาก `feat/deploy-prep`)
+- **วันที่**: `2026-11-12`
+- **ผู้ดำเนินการ**: Claude Code (แผนงาน `contextforge-vercel-prep`) ตามที่ตะวันสั่ง "เตรียมไฟล์ เพื่อพร้อม Deploy ขึ้น vercel" ไม่ได้ deploy และไม่ได้แตะบัญชี Vercel
+- **ไฟล์ใหม่**:
+  - `vercel.json`: `npm ci`, build = `prisma generate` + `npm run build`, static = `frontend/dist`, rewrite `/api/(.*)` -> function เดียว, region `sin1` (ใกล้ Supabase `ap-southeast-1`), `maxDuration` 60 วินาที, header ความปลอดภัยของหน้า static เท่ากับที่ helmet ให้ API (CSP `script-src 'self'`)
+  - `api/index.js`: function ห่อ Express จาก `backend/dist` ปิดตัวอ่านบอดีแบบ lazy ของ Vercel เพื่อให้ `express.json()` ได้บอดีครบ, เช็ก `JWT_SECRET` ตอน cold start
+  - `.vercelignore`, `binaryTargets` เพิ่ม `rhel-openssl-3.0.x` ใน `schema.prisma`
+  - `scripts/check-vercel.mjs` (ตรวจไฟล์ 20 ข้อ) และ `scripts/vercel-smoke.mjs` (รัน handler จริงกับฐานข้อมูลจริง + ตามไฟล์ด้วย `@vercel/nft` ซึ่งไม่ใช่ dependency ของ repo)
+  - `docs/DEPLOY_VERCEL.md`: ขั้นตอน env ที่ต้องใส่ (`DATABASE_URL` แบบ transaction pooler, `JWT_SECRET`, `TRUST_PROXY=1`, `GITHUB_PAT` ไม่บังคับ) รายการตรวจหลัง deploy และข้อจำกัด
+- **ซ้อมแบบ Vercel**: clone สะอาด -> `npm ci` -> `prisma generate` -> `npm run build` ตามที่ `vercel.json` สั่ง แล้วรัน `api/index.js` โหมด production: health 200 (`db=up`), รายการ server 39 จากฐานข้อมูลจริง, 404 เป็น JSON, POST ที่มีบอดี JSON ถึง Express (ได้ 401 ไม่ใช่ 400), `/auth/me` ไม่มี session ได้ 401 ตามไฟล์ 443 ไฟล์ มี `backend/dist/app.js`, `@prisma/client` + runtime, engine `rhel-openssl-3.0.x` และ express; `npm test` 197/197
+- **จับได้ระหว่างซ้อม**: `bcrypt` — ตัวตามไฟล์เลือก prebuild ตามแพลตฟอร์มที่รัน (บน Windows ได้ `win32-x64`) แพ็กเกจมี `linux-x64` ติดมา เลยบังคับรวมผ่าน `includeFiles` ใน `vercel.json`
+- **ที่ตรวจไม่ได้และต้องดูหลัง deploy**: rewrite รักษา URL เดิม `/api/v1/...` ไหม, helper ของ Vercel ปล่อยบอดีให้ Express ไหม, bundle บน Linux ตรงกับที่ตามได้บน Windows ไหม, build บน Node 22, ความเร็ว cold start; `vercel build` ในเครื่องล้มที่ symlink ของ Windows (EPERM ตอนติดตั้ง builder) ไม่เกี่ยวกับไฟล์ของเรา
+- **ข้อจำกัดที่ยอมรับ**: rate limiter อยู่ในหน่วยความจำต่อ instance (`ponytail:` เดิม) บน Vercel อาจมีหลาย instance แนะนำเพิ่มกฎ rate limit ใน Vercel Firewall สำหรับ `/api/v1/auth/login`
+- **หมายเหตุกระบวนการ**: เวลา 12:59:51 มี `git checkout main` ที่ไม่ได้มาจาก Claude Code สลับ branch กลางงาน (ทรีไม่เสียหาย กลับมา `feat/vercel-prep` แล้ว) ไม่ทราบต้นเหตุ
+
