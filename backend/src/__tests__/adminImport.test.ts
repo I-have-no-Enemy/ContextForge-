@@ -70,7 +70,7 @@ describe('POST /admin/submissions/approve-clean (AC-I7)', () => {
 
     const res = await call(admin);
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ approved: 2, left_in_queue_flagged: 1 });
+    expect(res.body.data).toEqual({ approved: 2, left_in_queue_flagged: 1, capped: false });
 
     expect((await prisma.aiSkill.findUniqueOrThrow({ where: { skill_id: a.skill_id } })).is_verified).toBe(true);
     expect((await prisma.aiSkill.findUniqueOrThrow({ where: { skill_id: b.skill_id } })).is_verified).toBe(true);
@@ -96,9 +96,22 @@ describe('POST /admin/submissions/approve-clean (AC-I7)', () => {
     const flagged = await make('flagged-server', true);
 
     const res = await call(admin, 'server');
-    expect(res.body.data).toEqual({ approved: 1, left_in_queue_flagged: 1 });
+    expect(res.body.data).toEqual({ approved: 1, left_in_queue_flagged: 1, capped: false });
     expect((await prisma.mcpServer.findUniqueOrThrow({ where: { server_id: clean.server_id } })).is_verified).toBe(true);
     expect((await prisma.mcpServer.findUniqueOrThrow({ where: { server_id: flagged.server_id } })).is_verified).toBe(false);
+  });
+
+  it('works in batches of 500 and says when more are waiting', async () => {
+    const sha = 'a'.repeat(40);
+    await prisma.aiSkill.createMany({
+      data: Array.from({ length: 501 }, (_, i) => ({ name: `bulk-${String(i).padStart(3, '0')}`, skill_content: '# x', is_verified: false, submitted_by: admin.user_id, source_url: `https://github.com/acme/s/blob/${sha}/bulk-${i}/SKILL.md` })),
+    });
+    const rows = await prisma.aiSkill.findMany({ select: { skill_id: true } });
+    await prisma.submissionReview.createMany({
+      data: rows.map((s) => ({ item_type: 'skill' as const, item_id: s.skill_id, reviewer_id: admin.user_id, status: 'pending' as const, flagged_by_scan: false })),
+    });
+    expect((await call(admin)).body.data).toEqual({ approved: 500, left_in_queue_flagged: 0, capped: true });
+    expect((await call(admin)).body.data).toEqual({ approved: 1, left_in_queue_flagged: 0, capped: false });
   });
 
   it('is idempotent: a second call approves nothing new', async () => {

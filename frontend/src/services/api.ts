@@ -315,4 +315,4 @@ export const syncGithub = () => send<SyncSummary>('POST', '/admin/sync/github');
 export const importGithub = (payload: { url: string; kind: 'skill' | 'mcp'; limit?: number; min_stars?: number; dry_run?: boolean }) =>
   send<ImportSummary>('POST', '/admin/import/github', payload);
 export const approveClean = (item_type: 'server' | 'skill') =>
-  send<{ approved: number; left_in_queue_flagged: number }>('POST', '/admin/submissions/approve-clean', { item_type });
+  send<{ approved: number; left_in_queue_flagged: number; capped: boolean }>('POST', '/admin/submissions/approve-clean', { item_type });

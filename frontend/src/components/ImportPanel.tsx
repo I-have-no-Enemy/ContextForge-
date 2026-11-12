@@ -55,6 +55,8 @@ export function ImportPanel({ onDone }: { onDone: () => void }) {
     }
   };
 
+  const problems = result ? [...result.failed.map((f) => ({ ...f, tag: 'failed' })), ...result.skipped.map((f) => ({ ...f, tag: 'skipped' }))] : [];
+
   return (
     <section className="import" aria-labelledby="import-h">
       <div>
@@ -151,7 +153,7 @@ export function ImportPanel({ onDone }: { onDone: () => void }) {
             <details>
               <summary>Skipped and failed, with reasons</summary>
               <ul className="import__list">
-                {[...result.failed.map((f) => ({ ...f, tag: 'failed' })), ...result.skipped.map((f) => ({ ...f, tag: 'skipped' }))].slice(0, 60).map((s, i) => (
+                {problems.slice(0, 60).map((s, i) => (
                   <li key={`${s.name}-${i}`}>
                     <span className="cf-mono">{s.name}</span>
                     <span className="cf-muted">
@@ -161,6 +163,7 @@ export function ImportPanel({ onDone }: { onDone: () => void }) {
                   </li>
                 ))}
               </ul>
+              {problems.length > 60 && <p className="cf-muted">and {problems.length - 60} more</p>}
             </details>
           )}
         </div>
@@ -173,15 +176,13 @@ export function ImportPanel({ onDone }: { onDone: () => void }) {
         confirmLabel="Approve and publish"
         onClose={() => setApproving(false)}
         onConfirm={async () => {
-          try {
-            const [skills, servers] = [await api.approveClean('skill'), await api.approveClean('server')];
-            toast(
-              `Approved ${skills.approved} skills and ${servers.approved} servers; ${skills.left_in_queue_flagged + servers.left_in_queue_flagged} flagged left in the queue.`
-            );
-            onDone();
-          } catch (err) {
-            toast(errorText(err), 'error');
-          }
+          // Two independent calls: if one fails the other still stands, and the message says which.
+          const [skills, servers] = await Promise.allSettled([api.approveClean('skill'), api.approveClean('server')]);
+          const part = (what: string, r: PromiseSettledResult<{ approved: number; capped: boolean }>) =>
+            r.status === 'fulfilled' ? `${r.value.approved} ${what}${r.value.capped ? ' (more are waiting: press again)' : ''}` : `${what} failed (${errorText(r.reason)})`;
+          const left = [skills, servers].reduce((n, r) => n + (r.status === 'fulfilled' ? (r as PromiseFulfilledResult<{ left_in_queue_flagged: number }>).value.left_in_queue_flagged : 0), 0);
+          toast(`Approved ${part('skills', skills)}; ${part('servers', servers)}. ${left} flagged left in the queue.`, skills.status === 'rejected' || servers.status === 'rejected' ? 'error' : 'ok');
+          onDone();
         }}
       />
     </section>

@@ -437,7 +437,7 @@ a.row__name:hover { text-decoration: underline; text-underline-offset: 4px; }
 }
 
 /* Admin: import from GitHub */
-.import { display: grid; gap: 16px; margin: 0 0 32px; padding: 20px; border: 1px solid var(--color-iron); border-radius: var(--radius-cards, 12px); }
+.import { display: grid; gap: 16px; margin: 0 0 32px; padding: 20px; border: 1px solid var(--color-iron); border-radius: var(--radius-cards); }
 .import__h { margin: 0 0 4px; font-size: 20px; }
 .import__form { display: grid; gap: 16px; max-width: 720px; }
 .import__row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
@@ -449,7 +449,7 @@ a.row__name:hover { text-decoration: underline; text-underline-offset: 4px; }
 
 /* Skill detail: SKILL.md read as a document */
 .skill-doc { max-width: 72ch; display: grid; gap: 14px; font-size: 16px; line-height: 1.6; color: var(--color-chalk); }
-.skill-doc h2, .skill-doc h3, .skill-doc h4, .skill-doc h5, .skill-doc h6 { margin: 18px 0 0; line-height: 1.25; font-weight: 500; }
+.skill-doc h2, .skill-doc h3, .skill-doc h4, .skill-doc h5, .skill-doc h6 { margin: 18px 0 0; line-height: 1.25; font-weight: 400; }
 .skill-doc h2 { font-size: 24px; }
 .skill-doc h3 { font-size: 20px; }
 .skill-doc h4, .skill-doc h5, .skill-doc h6 { font-size: 16px; }

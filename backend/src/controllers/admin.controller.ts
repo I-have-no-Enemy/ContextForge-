@@ -301,27 +301,31 @@ export class AdminController {
     const { item_type } = parsed.data;
     const adminId = req.user!.user_id || req.user!.id!;
 
+    const BATCH = 500;
     const result = await prisma.$transaction(async (tx) => {
-      const pending = await tx.submissionReview.findMany({
-        where: { item_type, status: 'pending' },
-        select: { review_id: true, item_id: true, flagged_by_scan: true },
-        take: 500,
-      });
-      const ids = pending.map((p) => p.item_id);
-      const imported =
+      // Start from the imported listings, so hand-submitted or flagged items never use up the batch.
+      const waiting =
         item_type === 'server'
-          ? await tx.mcpServer.findMany({ where: { server_id: { in: ids }, source_url: { not: null }, is_verified: false, is_deleted: false }, select: { server_id: true } })
-          : await tx.aiSkill.findMany({ where: { skill_id: { in: ids }, source_url: { not: null }, is_verified: false, is_deleted: false }, select: { skill_id: true } });
-      const importedIds = new Set(imported.map((i: any) => i.server_id ?? i.skill_id));
+          ? (await tx.mcpServer.findMany({ where: { source_url: { not: null }, is_verified: false, is_deleted: false }, select: { server_id: true }, orderBy: { created_at: 'asc' }, take: BATCH + 1 })).map((i) => i.server_id)
+          : (await tx.aiSkill.findMany({ where: { source_url: { not: null }, is_verified: false, is_deleted: false }, select: { skill_id: true }, orderBy: { created_at: 'asc' }, take: BATCH + 1 })).map((i) => i.skill_id);
+      const capped = waiting.length > BATCH;
+      const ids = waiting.slice(0, BATCH);
 
-      const clean = pending.filter((p) => importedIds.has(p.item_id) && !p.flagged_by_scan);
-      const cleanIds = clean.map((p) => p.item_id);
+      const clean = await tx.submissionReview.findMany({
+        where: { item_type, item_id: { in: ids }, status: 'pending', flagged_by_scan: false },
+        select: { review_id: true, item_id: true },
+      });
+      const cleanIds = clean.map((r) => r.item_id);
+      let approved = 0;
       if (cleanIds.length > 0) {
         // The `is_verified: false` guard makes a repeated or concurrent call approve each item at most once.
-        if (item_type === 'server') await tx.mcpServer.updateMany({ where: { server_id: { in: cleanIds }, is_verified: false }, data: { is_verified: true } });
-        else await tx.aiSkill.updateMany({ where: { skill_id: { in: cleanIds }, is_verified: false }, data: { is_verified: true } });
+        const flipped =
+          item_type === 'server'
+            ? await tx.mcpServer.updateMany({ where: { server_id: { in: cleanIds }, is_verified: false }, data: { is_verified: true } })
+            : await tx.aiSkill.updateMany({ where: { skill_id: { in: cleanIds }, is_verified: false }, data: { is_verified: true } });
+        approved = flipped.count;
         await tx.submissionReview.updateMany({
-          where: { review_id: { in: clean.map((p) => p.review_id) }, status: 'pending' },
+          where: { review_id: { in: clean.map((r) => r.review_id) }, status: 'pending' },
           data: {
             status: 'approved',
             reviewer_id: adminId,
@@ -330,10 +334,8 @@ export class AdminController {
           },
         });
       }
-      return {
-        approved: clean.length,
-        left_in_queue_flagged: pending.filter((p) => importedIds.has(p.item_id) && p.flagged_by_scan).length,
-      };
+      const left = await tx.submissionReview.count({ where: { item_type, item_id: { in: ids }, status: 'pending', flagged_by_scan: true } });
+      return { approved, left_in_queue_flagged: left, capped };
     });
 
     sendSuccess(res, result);

@@ -25,10 +25,11 @@ const toolLevels = (s: McpServer): RiskLevel[] => (s.tools ?? []).map((t) => t.r
 export function BrowseView() {
   const cart = useCart();
   // Coming back from a detail page: the tab, search and page the user had, and the lists they were looking at.
-  const [tab, setTab] = useState<'servers' | 'skills'>(browseMemory.ui?.tab ?? 'servers');
-  const [search, setSearch] = useState(browseMemory.ui?.search ?? '');
-  const [client, setClient] = useState(browseMemory.ui?.client ?? 'all');
-  const [page, setPage] = useState(browseMemory.ui?.page ?? { servers: 1, skills: 1 });
+  const initial = browseMemory.ui ?? { tab: 'servers' as const, search: '', client: 'all', page: { servers: 1, skills: 1 } };
+  const [tab, setTab] = useState<'servers' | 'skills'>(initial.tab);
+  const [search, setSearch] = useState(initial.search);
+  const [client, setClient] = useState(initial.client);
+  const [page, setPage] = useState(initial.page);
 
   const [servers, setServers] = useState<McpServer[]>(browseMemory.lists?.servers ?? []);
   const [skills, setSkills] = useState<AiSkill[]>(browseMemory.lists?.skills ?? []);

@@ -22,10 +22,8 @@ export interface ImportOptions {
   /** For topic and awesome-list sources: ignore repositories with fewer GitHub stars than this. */
   minStars?: number;
   dryRun?: boolean;
-  db?: Pick<typeof prisma, 'aiSkill' | 'mcpServer' | '$transaction'>;
   fetchImpl?: typeof fetch;
   token?: string;
-  timeoutMs?: number;
 }
 
 export interface ImportedItem {
@@ -52,6 +50,8 @@ export interface ImportSummary {
 }
 
 export class ImportInputError extends Error {}
+const errMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const REQUEST_TIMEOUT_MS = 10_000;
 class RateLimited extends Error {}
 
 const SEGMENT = /^[A-Za-z0-9_.-]{1,100}$/;
@@ -102,7 +102,12 @@ interface RepoInfo {
   description: string | null;
 }
 
-function makeClient(fetchImpl: typeof fetch, token: string | undefined, timeoutMs: number) {
+/** The few fields read from GitHub's JSON; everything else is ignored. */
+interface GhRepo { owner?: { login?: string }; name?: string; html_url?: string; default_branch?: string; license?: { spdx_id?: string } | null; stargazers_count?: number; description?: string | null }
+interface GhCommit { sha?: string; commit?: { tree?: { sha?: string } } }
+interface GhTree { tree?: Array<{ type?: string; path?: string }> }
+
+function makeClient(fetchImpl: typeof fetch, token: string | undefined) {
   const state = { calls: 0, remaining: null as number | null };
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
@@ -120,7 +125,7 @@ function makeClient(fetchImpl: typeof fetch, token: string | undefined, timeoutM
 
   /** `path` must start with "/" and is appended to api.github.com; no caller can choose the host. */
   async function api<T>(path: string): Promise<T | null> {
-    const res = await fetchImpl(`https://api.github.com${path}`, { headers, signal: AbortSignal.timeout(timeoutMs) });
+    const res = await fetchImpl(`https://api.github.com${path}`, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     note(res);
     if (exhausted(res)) throw new RateLimited('GitHub rate limit reached');
     if (res.status === 404) return null;
@@ -133,7 +138,7 @@ function makeClient(fetchImpl: typeof fetch, token: string | undefined, timeoutM
     const segs = path.split('/');
     if (segs.some((s) => s === '..' || s === '')) throw new Error('invalid path');
     const url = `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(ref)}/${segs.map(encodeURIComponent).join('/')}`;
-    const res = await fetchImpl(url, { headers: { 'User-Agent': 'contextforge-import' }, signal: AbortSignal.timeout(timeoutMs) });
+    const res = await fetchImpl(url, { headers: { 'User-Agent': 'contextforge-import' }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     if (res.status === 429) throw new RateLimited('GitHub rate limit reached');
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`raw.githubusercontent.com responded ${res.status}`);
@@ -143,10 +148,10 @@ function makeClient(fetchImpl: typeof fetch, token: string | undefined, timeoutM
     return text;
   }
 
-  const toInfo = (j: any): RepoInfo => ({
-    owner: j.owner?.login,
-    repo: j.name,
-    html_url: j.html_url,
+  const toInfo = (j: GhRepo): RepoInfo => ({
+    owner: j.owner?.login ?? '',
+    repo: j.name ?? '',
+    html_url: j.html_url ?? '',
     default_branch: j.default_branch || 'main',
     license: j.license?.spdx_id && j.license.spdx_id !== 'NOASSERTION' ? String(j.license.spdx_id) : null,
     stars: Number(j.stargazers_count) || 0,
@@ -158,22 +163,22 @@ function makeClient(fetchImpl: typeof fetch, token: string | undefined, timeoutM
     api,
     raw,
     async repoInfo(owner: string, repo: string): Promise<RepoInfo | null> {
-      const j = await api<any>(`/repos/${owner}/${repo}`);
+      const j = await api<GhRepo>(`/repos/${owner}/${repo}`);
       return j ? toInfo(j) : null;
     },
     /** One request returns stars, license and branch for every hit, sorted by stars. */
     async searchTopic(topic: string, perPage: number): Promise<RepoInfo[]> {
-      const j = await api<{ items: any[] }>(
+      const j = await api<{ items?: GhRepo[] }>(
         `/search/repositories?q=${encodeURIComponent(`topic:${topic}`)}&sort=stars&order=desc&per_page=${perPage}`
       );
       return (j?.items ?? []).map(toInfo).filter((i) => i.owner && i.repo && SEGMENT.test(i.owner) && SEGMENT.test(i.repo));
     },
     /** Commit sha plus the files of a repo at that commit, so later fetches are pinned to one snapshot. */
     async snapshot(info: RepoInfo, ref?: string): Promise<{ sha: string; paths: string[] } | null> {
-      const commit = await api<any>(`/repos/${info.owner}/${info.repo}/commits/${encodeURIComponent(ref ?? info.default_branch)}`);
+      const commit = await api<GhCommit>(`/repos/${info.owner}/${info.repo}/commits/${encodeURIComponent(ref ?? info.default_branch)}`);
       if (!commit?.sha || !commit?.commit?.tree?.sha) return null;
-      const tree = await api<any>(`/repos/${info.owner}/${info.repo}/git/trees/${commit.commit.tree.sha}?recursive=1`);
-      const paths: string[] = (tree?.tree ?? []).filter((t: any) => t.type === 'blob').map((t: any) => String(t.path));
+      const tree = await api<GhTree>(`/repos/${info.owner}/${info.repo}/git/trees/${commit.commit.tree.sha}?recursive=1`);
+      const paths: string[] = (tree?.tree ?? []).filter((t) => t.type === 'blob' && t.path).map((t) => String(t.path));
       return { sha: String(commit.sha), paths };
     },
   };
@@ -356,22 +361,22 @@ export function classifyRisk(name: string, description: string): ToolRiskLevel {
 
 export async function importFromGithub(opts: ImportOptions): Promise<ImportSummary> {
   const {
-    url, kind, submittedBy, dryRun = false, db = prisma, fetchImpl = fetch,
-    token = process.env.GITHUB_PAT, timeoutMs = 10_000,
+    url, kind, submittedBy, dryRun = false, fetchImpl = fetch,
+    token = process.env.GITHUB_PAT,
   } = opts;
   const limit = Math.min(MAX_LIMIT, Math.max(1, Math.floor(opts.limit ?? 20)));
 
   const source = parseSource(url);
   if (!source) throw new ImportInputError('Only https://github.com/<owner>/<repo> or https://github.com/topics/<topic> URLs are accepted.');
 
-  const client = makeClient(fetchImpl, token, timeoutMs);
+  const client = makeClient(fetchImpl, token);
   const summary: ImportSummary = {
     source: url, kind, dry_run: dryRun, created: [], skipped: [], failed: [], partial: false,
     api_calls: 0, rate_remaining: null,
   };
   const minStars = Math.max(0, Math.floor(opts.minStars ?? 0));
   // Ranking a whole awesome list by stars costs one request per linked repository; only worth it with a token.
-  const ctx: Ctx = { client, db, submittedBy, dryRun, limit, summary, minStars, belowMin: 0, pool: token ? 1200 : limit * 4 };
+  const ctx: Ctx = { client, submittedBy, dryRun, limit, summary, minStars, belowMin: 0, pool: token ? 1200 : limit * 4 };
 
   try {
     if (kind === 'skill') await importSkills(ctx, source);
@@ -393,7 +398,6 @@ export async function importFromGithub(opts: ImportOptions): Promise<ImportSumma
 
 interface Ctx {
   client: Client;
-  db: NonNullable<ImportOptions['db']>;
   submittedBy: string;
   dryRun: boolean;
   limit: number;
@@ -464,7 +468,7 @@ async function importSkills(c: Ctx, s: Source) {
         await saveSkill(c, info, snap.sha, sourceUrl, parsed, text, label);
       } catch (err) {
         if (err instanceof RateLimited) throw err;
-        c.summary.failed.push({ name: label, reason: err instanceof Error ? err.message : String(err) });
+        c.summary.failed.push({ name: label, reason: errMessage(err) });
       }
     }
   }
@@ -495,14 +499,14 @@ async function saveSkill(c: Ctx, info: RepoInfo, sha: string, sourceUrl: string,
     return;
   }
   // The same file mirrored in another repository is one skill, not two.
-  const same = await c.db.aiSkill.findFirst({ where: { skill_content: content, is_deleted: false }, select: { name: true, source_url: true } });
+  const same = await prisma.aiSkill.findFirst({ where: { skill_content: content, is_deleted: false }, select: { name: true, source_url: true } });
   if (same && same.source_url !== sourceUrl) {
     c.summary.skipped.push({ name: base, reason: `identical content to the existing listing "${same.name}"` });
     return;
   }
   // The same text under another name (a fork, a bundled copy) is the same skill. Short descriptions are too generic to compare.
   if (parsed.description.length >= 40) {
-    const twin = await c.db.aiSkill.findFirst({
+    const twin = await prisma.aiSkill.findFirst({
       where: { is_deleted: false, description: { equals: parsed.description, mode: 'insensitive' } },
       select: { name: true, source_url: true },
     });
@@ -511,7 +515,7 @@ async function saveSkill(c: Ctx, info: RepoInfo, sha: string, sourceUrl: string,
       return;
     }
   }
-  const picked = await freeName((name) => c.db.aiSkill.findUnique({ where: { name }, select: { source_url: true } }), base, info.owner.toLowerCase(), sourceUrl);
+  const picked = await freeName((name) => prisma.aiSkill.findUnique({ where: { name }, select: { source_url: true } }), base, info.owner.toLowerCase(), sourceUrl);
   if ('skip' in picked) {
     c.summary.skipped.push({ name: base, reason: picked.skip });
     return;
@@ -523,7 +527,7 @@ async function saveSkill(c: Ctx, info: RepoInfo, sha: string, sourceUrl: string,
     return;
   }
   try {
-    await c.db.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       const skill = await tx.aiSkill.create({
         data: {
           name: picked.name,
@@ -576,7 +580,7 @@ async function importMcp(c: Ctx, s: Source) {
       await saveMcp(c, cand);
     } catch (err) {
       if (err instanceof RateLimited) throw err;
-      c.summary.failed.push({ name: cand.nameHint, reason: err instanceof Error ? err.message : String(err) });
+      c.summary.failed.push({ name: cand.nameHint, reason: errMessage(err) });
     }
   }
 }
@@ -587,7 +591,7 @@ async function* mcpCandidates(c: Ctx, s: Source): AsyncGenerator<McpCandidate> {
       return (await c.client.raw(info.owner, info.repo, ref, path, true)) ?? '';
     } catch (err) {
       if (err instanceof RateLimited) throw err;
-      c.summary.failed.push({ name: `${info.owner}/${info.repo}`, reason: `README unreadable: ${err instanceof Error ? err.message : String(err)}` });
+      c.summary.failed.push({ name: `${info.owner}/${info.repo}`, reason: `README unreadable: ${errMessage(err)}` });
       return null;
     }
   };
@@ -662,7 +666,7 @@ async function saveMcp(c: Ctx, cand: McpCandidate) {
   // The same package under another name is the same server: skip it rather than list it twice.
   const key = packageKey(parsed.install_command);
   if (key) {
-    const same = await c.db.mcpServer.findMany({ where: { is_deleted: false, install_command: { contains: key } }, select: { name: true, source_url: true }, take: 5 });
+    const same = await prisma.mcpServer.findMany({ where: { is_deleted: false, install_command: { contains: key } }, select: { name: true, source_url: true }, take: 5 });
     const other = same.find((r) => r.source_url !== cand.sourceUrl);
     if (other) {
       c.summary.skipped.push({ name: cand.nameHint, reason: `same package as the existing listing "${other.name}"` });
@@ -675,7 +679,7 @@ async function saveMcp(c: Ctx, cand: McpCandidate) {
     return;
   }
   const picked = await freeName(
-    (name) => c.db.mcpServer.findUnique({ where: { name }, select: { source_url: true, repository_url: true } }),
+    (name) => prisma.mcpServer.findUnique({ where: { name }, select: { source_url: true, repository_url: true } }),
     base,
     info.owner.toLowerCase(),
     cand.sourceUrl,
@@ -694,7 +698,7 @@ async function saveMcp(c: Ctx, cand: McpCandidate) {
     return;
   }
   try {
-    await c.db.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       const server = await tx.mcpServer.create({
         data: {
           name: picked.name,
