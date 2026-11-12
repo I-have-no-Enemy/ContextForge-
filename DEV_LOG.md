@@ -653,3 +653,14 @@
 - **ข้อจำกัดที่ยอมรับ**: rate limiter อยู่ในหน่วยความจำต่อ instance (`ponytail:` เดิม) บน Vercel อาจมีหลาย instance แนะนำเพิ่มกฎ rate limit ใน Vercel Firewall สำหรับ `/api/v1/auth/login`
 - **หมายเหตุกระบวนการ**: เวลา 12:59:51 มี `git checkout main` ที่ไม่ได้มาจาก Claude Code สลับ branch กลางงาน (ทรีไม่เสียหาย กลับมา `feat/vercel-prep` แล้ว) ไม่ทราบต้นเหตุ
 
+---
+
+### Entry #026: deploy ขึ้น Vercel ครั้งแรก (production, `main` @ `3d9616c`)
+- **วันที่**: `2026-11-12`
+- **ผู้ดำเนินการ**: Claude Code ตามที่ตะวันสั่ง "Deploy เลย" (บัญชี Vercel `tawaninms-projects`, โปรเจกต์ `contextforge`, production URL `https://contextforge-seven.vercel.app`)
+- **ทางที่ใช้**: ผูก Git ไม่ได้ (repo อยู่ที่องค์กร `I-have-no-Enemy` แต่แอป GitHub ของ Vercel ติดตั้งที่บัญชี `tawaninm`) จึงใช้ Vercel CLI (`vercel link`, `vercel deploy --prod`) จากโฟลเดอร์ที่ merge แล้ว; บน Windows ต้องเปิด Developer Mode เพราะ CLI สร้าง symlink (ก่อนเปิดล้มด้วย EPERM); CLI รุ่นนี้ตรวจจับ "services" จากโฟลเดอร์ `frontend/` กับ `backend/` และปฏิเสธ `vercel.json` ของเรา แก้โดยสร้างโปรเจกต์ผ่าน MCP ด้วย framework ว่างก่อนแล้วค่อย link
+- **env ที่ใส่แล้ว**: `JWT_SECRET` (สุ่ม ไม่แสดงค่า), `TRUST_PROXY=1` ทั้งคู่ชนิด sensitive; **ยังไม่มี `DATABASE_URL`** ตะวันกรอกเอง
+- **ผลบน Vercel จริง**: build บน Node 26.x ผ่าน (READY); `/api/v1/nope` ตอบ 404 JSON พร้อมพาธเดิม จึงยืนยันว่า rewrite รักษา URL; function รันที่ `sin1`; `/api/v1/health` ตอบ 503 `database: down` (ตามคาด ยังไม่มี `DATABASE_URL`); หน้าเว็บและ `theme-init.js` ขึ้น พร้อม CSP จาก `vercel.json`
+- **ค้าง**: `DATABASE_URL` แล้ว redeploy; เปิดสาธารณะ (ตอนนี้ Vercel Authentication ครอบ production URL อยู่ ผู้ชมต้องล็อกอิน Vercel); ทดสอบสมัครสมาชิก (POST + bcrypt บน Linux); ยังไม่ผูก Git ทำให้ push ไม่ deploy เอง
+- **ข้อสังเกต**: มี production deployment 2 ตัวจาก commit เดียวกัน (สร้างห่างกัน ~1 นาที) ตัวหลังเป็นตัวที่ production URL ชี้อยู่
+

@@ -20,7 +20,7 @@ Render is the other prepared option (`render.yaml`, `docs/DEPLOY.md`); pick one 
 ## First deploy
 
 1. Push the branch to GitHub. In Vercel choose Add New, Project, and import the repository. Keep the **Root Directory** at the repository root and the **Framework Preset** at "Other". Build, install and output settings come from `vercel.json`.
-2. In Project Settings, General, set **Node.js Version** to 22.x (the Render file uses 22 as well; the local machine runs a newer Node, so the first Vercel build is the real test).
+2. In Project Settings, General, set **Node.js Version** to 26.x. This matches the Node the project was built and tested on locally (v26.13.0). The Render file still pins 22, which has not been tried with this code.
 3. In Settings, Environment Variables, add these for Production (and Preview if you want previews to work):
 
 | Name | Value |
@@ -61,7 +61,17 @@ Never run `npm run seed` against this database (it needs `--confirm-wipe` and de
 
 Verified on the Windows development machine, in a clean clone with `npm ci`, the same build command and a production-mode run of `api/index.js` against the real database: health, list, 404 JSON, JSON `POST` body, signed-out 401, and a file trace (the same tracer Vercel uses, `@vercel/nft`) showing the compiled backend, Prisma and the Linux engine, and express in the bundle. The tracer picks `bcrypt`'s prebuild for the machine it runs on, so on Windows it listed the Windows one; the package ships the Linux prebuilds and `vercel.json` force-includes them. `node scripts/check-vercel.mjs` re-checks the static settings; `node scripts/vercel-smoke.mjs --trace` repeats the run.
 
-**Not verified, because it needs a real Vercel deployment:** that the rewrite keeps `/api/v1/...` as the request URL, that Vercel's own request helper leaves the body to Express, that the bundle really contains what the trace lists, the Node 22 build, and cold-start timing. The checklist above covers each of them.
+**Verified on Vercel itself** (first production deploy of `main` at `3d9616c`, 2026-11-12, project `contextforge`, production URL `https://contextforge-seven.vercel.app`):
+- The build on Vercel's Node 26.x image finished (`READY`).
+- The rewrite keeps the original URL: an unknown path answers `Endpoint GET /api/v1/nope ... not found` from Express.
+- The function runs in `sin1`, loads Express and the Prisma client, and answers JSON.
+- The site is served from the CDN with the CSP and security headers from `vercel.json`, and `theme-init.js` loads.
+
+**Still not verified:** the database connection (`DATABASE_URL` was added after this deploy; until then `/api/v1/health` answers 503 with `database: down`), a JSON `POST` and `bcrypt` on Linux (registering an account tests both), the `TRUST_PROXY` effect, and cold-start timing. The checklist above covers each of them.
+
+## How the first deploy was made
+
+The repository belongs to the GitHub organisation `I-have-no-Enemy`, and the Vercel GitHub app is installed on a different account, so the project is not linked to Git. It was created and deployed with the Vercel CLI from this folder (`vercel link`, then `vercel deploy --prod`). On Windows the CLI needs Developer Mode (it creates symlinks). Pushes do not deploy by themselves: run `vercel deploy --prod --scope tawaninms-projects` again, or install the Vercel GitHub app on the organisation and run `vercel git connect`.
 
 ## Rolling back
 
