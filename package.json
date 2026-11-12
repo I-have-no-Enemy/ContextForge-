@@ -17,6 +17,7 @@
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:migrate": "npm run prisma:migrate --workspace=backend",
+    "db:deploy": "npm run prisma:deploy --workspace=backend",
     "db:seed": "npm run seed --workspace=backend",
     "ui:check": "node scripts/ui-checks/run.mjs"
   },

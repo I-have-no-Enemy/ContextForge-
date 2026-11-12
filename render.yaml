@@ -1,0 +1,26 @@
+# Render Blueprint: one web service that builds both workspaces and serves the site and the API on one origin.
+# Secrets are never stored here: DATABASE_URL and GITHUB_PAT are entered in the Render dashboard (sync: false).
+services:
+  - type: web
+    name: contextforge
+    runtime: node
+    plan: free
+    region: singapore
+    # NODE_ENV=production makes `npm ci` skip devDependencies, but tsc and vite are devDependencies, so ask for them.
+    buildCommand: npm ci --include=dev && npm run prisma:generate --workspace=backend && npm run build
+    startCommand: npm run start --workspace=backend
+    healthCheckPath: /api/v1/health
+    autoDeploy: false
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: GITHUB_PAT
+        sync: false
