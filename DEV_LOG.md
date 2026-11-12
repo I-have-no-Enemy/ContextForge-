@@ -542,3 +542,76 @@
 - **การทดสอบ**: เลิก mock Prisma ทั้งหมด, 111 integration test ยิง PostgreSQL จริงใน schema `ctxforge_test` (ไม่แตะ `public`), มี test race ด้วย row lock จริง; `npm run e2e` รัน Postman 50 request / 74 assertion ผ่านหมด
 - **เอกสาร**: `docs/API.md` (29 endpoint), `docs/postman/`, `docs/DEMO.md`, `CASE_STUDY.md`, README ใหม่
 - **ผลการตรวจ**: `npm test --workspace=backend` 111/111, `tsc` backend/frontend ผ่าน, `vite build` ผ่าน, `node scripts/check-docs.mjs` ผ่าน
+
+---
+
+### Entry #019: แก้ finding จาก UX/UI audit และระบบ import จาก GitHub (branch `feat/audit-fixes-and-import`)
+- **วันที่**: `2026-11-11`
+- **ผู้ดำเนินการ**: Claude Code (แผนงาน `contextforge-import-fixes`)
+- **UX/UI audit (วัดด้วย Playwright บน production build)**
+  - Dialog มี focus trap (Tab วน 21 ครั้งไม่หลุด, Esc ปิดแล้ว focus กลับปุ่มเดิม)
+  - Footer ไม่ถูก dock มือถือทับ (footer bottom 716px <= dock top 732px); เดิมทับ 48px ซ่อนบรรทัดเปิดเผยว่าวิดีโอสร้างด้วย AI
+  - มือถือมีลิงก์ API docs ใน dock และไม่มี Sign in ซ้ำ; ปลายทางสัมผัสเล็กกว่า 24px เหลือ 0; วันที่ใช้ "11 Nov 2026"; ป้าย "runs" เปลี่ยนเป็น "exports"; cursor ของ chip เป็น pointer
+  - `/auth/me` ตอบ 401 ครั้งเดียวบน production build (ซ้ำสองครั้งเฉพาะ dev เพราะ React StrictMode)
+- **Import จาก GitHub**
+  - คอลัมน์ `source_url`, `source_license`, `source_ref` (migration `20261111000001`, ใส่ Supabase แล้ว)
+  - `githubImport.service.ts`, `POST /admin/import/github`, `POST /admin/submissions/approve-clean`, ฟอร์มใน Admin, CLI `npm run import:github`
+  - กฎที่ test ล็อกไว้: host allowlist, install_command ต้องเป็น npx/uvx/docker run ไม่มี shell syntax, ข้าม MCP ที่ไม่มี tool list, ไม่สร้างซ้ำ (ชื่อ, package, เนื้อหาเหมือนกัน), โฟลเดอร์ที่มี SKILL.md เกิน 50 ไฟล์เอาแค่ 3, หยุดแบบ partial เมื่อโควตาหมด
+  - ผลจริงรอบแรก (ไม่มี token): skills 59 และ servers 15 อยู่ในคิว pending
+  - ผลจริงหลังใส่ `GITHUB_PAT` (โควตา 5,000/ชม.): skills 139 (จาก 10 repo ดาว 759 ถึง 451,523) และ servers 34 (ดาว 112 ถึง 33,859, มัธยฐาน 358) ทั้งหมด pending, scanner ไม่พบ flag
+  - เพิ่มตัวกรอง `min_stars` และให้ awesome list เรียงตามดาวก่อน import (ค้นสูงสุด 1,200 ลิงก์เมื่อมี token) หลังพบว่ารอบแรกได้ MCP มัธยฐานแค่ 4 ดาว; ลบ MCP ที่ import เองและต่ำกว่า 200 ดาว 70 แถว
+  - MCP ส่วนใหญ่ถูกข้าม (ราว 60% ไม่มี tool list, ราว 30% ไม่มีคำสั่งติดตั้งที่ปลอดภัยใน README) เพราะไม่เดา risk level
+- **บั๊กที่เจอระหว่างทาง**: `safeInstallCommand` ยุบบรรทัดใหม่เป็นช่องว่างก่อนตรวจ (test จับได้); run แรกกับ topic ล้มทั้งรอบเพราะ README ยาวเกิน 100,000 ตัวอักษร (ตอนนี้ตัดแทนปฏิเสธ); import สร้างรายการซ้ำกับ seed (`memory-modelcontextprotocol`, `context7-upstash`) และสกิล `*-automation` 35 ตัวจากเทมเพลต ลบเฉพาะแถวที่ import เองและยัง pending แล้ว
+- **ผลการตรวจ**: `npm test` 159/159, `npm run e2e` Postman 55 request / 81 assertion ผ่านหมด, `tsc` และ `vite build` ผ่าน, `check-docs` ผ่าน, `db:check` 12/12
+- **ข้อจำกัด**: โควตา GitHub แบบไม่ใช้ token คือ 60 call/ชม. ไม่มี `GITHUB_PAT` จะได้ 60 call/ชม. และ awesome list ไม่ถูกจัดอันดับตามดาว; รายการ tool และระดับความเสี่ยงของ MCP ที่ import มาอ่านจาก README ด้วยคีย์เวิร์ด ยังไม่ผ่านการยืนยัน (บางตัวได้ 40 tools ซึ่งเป็นเพดาน อาจรวมบรรทัดที่ไม่ใช่ tool)
+
+---
+
+### Entry #020: หน้าแรกสั้นลง, อ่านสกิลได้, กดการ์ดแล้วเปิดรายละเอียด (branch `feat/audit-fixes-and-import`)
+- **วันที่**: `2026-11-11`
+- **ผู้ดำเนินการ**: Claude Code (แผนงาน `contextforge-import-fixes`)
+- **ปัญหา** หลังตะวันอนุมัติรายการที่ import (44 servers, 139 skills) ส่วน "Four kinds of reach" แสดงครบ 539 tools จนต้องเลื่อนไกลกว่าจะถึงแท็บ MCP/Skills
+- **แก้**
+  - แต่ละ lane แสดง 8 tools (ไล่จาก server ดาวสูงสุด สลับทีละ server) พร้อม "N more in the registry" และตัวเลขรวมยังเป็นของจริง (539 tools, 44 servers); ปุ่ม "Browse 44 MCP servers" และ "Browse 139 skills" เลื่อนไปที่รายการและเปลี่ยนแท็บให้
+  - ระยะจาก lanes ถึงรายการ: desktop 926px (1 หน้าจอ), มือถือ 1,076px (1.3 หน้าจอ)
+  - หน้า detail ของสกิลมีโหมด Read (จัดรูปหัวข้อ รายการ โค้ด ลิงก์ https) กับ SKILL.md source; สร้างจาก React element เท่านั้น ไม่ฉีด HTML
+  - การ์ดสกิลแสดงแท็กต้นทาง (github, เจ้าของ repo) แทนป้าย client ที่เหมือนกันทุกใบ; คำอธิบายตัดที่ 4 บรรทัด; กดตรงไหนของการ์ดก็เปิดหน้ารายละเอียด
+  - รายการเรียง `downloads_count`, `github_stars`, `name` (ทุกรายการมี downloads 0 ลำดับเดิมไม่แน่นอนและแบ่งหน้าอาจซ้ำ/ตกหล่น)
+- **บั๊กข้อมูลที่เจอ**: parser อ่านชื่อตัวแปร env `IDA_MCP_MAX_WORKERS` เป็น tool ของ `ida-pro-mcp` ที่ถูกอนุมัติแล้ว ถอนออกจากหน้าสาธารณะแบบ takedown (บันทึก review) และแก้ parser ให้ปฏิเสธชื่อ ALL_CAPS พร้อม test
+- **ที่ยังเหลือ**: สกิล 5 รายการที่ scanner ติด flag ยังอยู่ในคิว (browser-testing-with-devtools, create-agent-adapter, paperclip, security-and-hardening, source-driven-development) ให้ admin อ่านก่อนตัดสิน
+- **ผลการตรวจ**: `npm test` 160/160, `tsc` และ `vite build` ผ่าน, `check-docs` ผ่าน, วัดด้วย Playwright บนข้อมูลจริง (อ่านอย่างเดียว) ที่ 1440 และ 375
+
+---
+
+### Entry #021: popup ล็อกหน้าหลัง และกลับมาตำแหน่งเดิมหลังอ่านรายละเอียด (branch `feat/audit-fixes-and-import`)
+- **วันที่**: `2026-11-11`
+- **ผู้ดำเนินการ**: Claude Code (แผนงาน `contextforge-import-fixes`)
+- **Popup**: ทุก popup ใช้ `Dialog` ตัวเดียว เมื่อเปิดจะล็อกการเลื่อนของหน้าหลัง (`html.is-scroll-locked` + `lenis.stop()`, นับจำนวน popup ที่เปิดซ้อนกัน) ล้อเมาส์บนฉากเบลอไม่ขยับหน้า ส่วนในตัว popup เลื่อนเนื้อหาข้างใน (`data-lenis-prevent`) ปิดแล้วหน้าเลื่อนได้ตามเดิม
+- **กลับมาตำแหน่งเดิม**: หน้าแรกจำตำแหน่งเลื่อน แท็บ คำค้น ตัวกรองและหน้าที่เลือก รวมถึงข้อมูลรายการที่แสดง (`lib/browseMemory.ts`) ใช้ได้ทั้งปุ่ม back ของเบราว์เซอร์และลิงก์ "Registry" ส่วน "Browse" และโลโก้ในแถบนำทางเริ่มใหม่ที่บนสุดตามความตั้งใจ
+- **บั๊กที่เจอ**: (1) เมื่อออกจากหน้าแรก เอกสารหดและเบราว์เซอร์บีบตำแหน่งเลื่อน ทำให้ค่าที่จดไว้ถูกทับ (จดเฉพาะตอน URL ยังเป็นหน้าแรก) (2) Lenis จำระยะเลื่อนสูงสุดของหน้าก่อนหน้าและบีบ `scrollTo` ลงเหลือ 260px (เรียก `lenis.resize()` ก่อนเลื่อน)
+- **ผลการตรวจ** (Playwright, ข้อมูลจริงแบบอ่านอย่างเดียว): ปุ่ม back กลับ y 2318 -> 2318 แท็บ Skills หน้า 2 จาก 12 (desktop และ 375px); ลิงก์ Registry 2617 -> 2617; ล็อกหน้าหลัง popup: ล้อบนฉากเบลอ 1080 -> 1080, ล้อในตัว popup เลื่อนข้างใน 0 -> 111, ปิดแล้วเลื่อนหน้าได้อีก (1080 -> 1440); focus trap และ contrast ยังผ่าน; `npm test` 160/160
+
+---
+
+### Entry #022: แก้จาก code review และ UX/UI audit รอบ 2 (branch `fix/review-round2`)
+- **วันที่**: `2026-11-12`
+- **ผู้ดำเนินการ**: Claude Code (แผนงาน `contextforge-review-fixes`)
+- **ชุดตรวจ UI ใน repo**: `npm run ui:check` (playwright-core) 8 เคส อ่านอย่างเดียว: dialog (focus ไม่ถึงหน้าหลังฉาก, ล้อบนฉากไม่ขยับหน้า, เลื่อนข้างใน, Esc คืน focus), กลับตำแหน่งเดิม (ปุ่ม back และลิงก์ Registry, desktop/มือถือ), focus หลังปุ่มกระโดด, `h1` ของหน้าเต็ม, เลย์เอาต์มือถือ, เป้าสัมผัส >= 24px, ยอด lanes ตรงกับ API, "1 export" วิธีใช้อยู่ที่ `docs/UI_CHECKS.md` เคส 3, 4, 6, 8 แดงก่อนแก้และเขียวหลังแก้
+- **ข้อมูลที่ import**: `isLikelyTool` ตัดหมวด/พารามิเตอร์/ชื่อไฟล์/หัวตาราง ออกจากรายการ tool; `classifyRisk` สองชั้น (ชื่อ tool จับตาม stem, คำอธิบายจับเฉพาะกริยาเต็ม เพราะ stem ทำให้ "Editor", "merged", "evaluate and rank" กลายเป็น destructive); เนื้อหา MCP ผ่าน scanner จริง (เดิม `flagged_by_scan` เป็น false ตายตัว); เพดาน tool 150; กันสกิลที่คำอธิบายซ้ำกัน; `approve-clean` เริ่มจากรายการ import จึงไม่ถูกรายการอื่นกินโควตา 500 และบอก `capped`
+- **UI**: `h1` ของ 6 หน้าเต็ม, focus ไปที่ `#browse-h` หลังปุ่มกระโดด, ลิงก์ภายนอกขีดเส้นใต้และสูง >= 24px, plural, license บนการ์ด, สารบัญของสกิลยาว, "40+" ของ server ที่ถูกตัดที่ 40 เดิม
+- **Dialog**: เปลี่ยนเป็น `<dialog>.showModal()` เนทีฟ (ถอด focus trap/focusin ที่เขียนเอง ~45 บรรทัด) คงตัวล็อกการเลื่อนของหน้าไว้ เพราะ modal dialog ไม่ล็อกการเลื่อนของหน้าเอง ที่ขอบ dialog Tab ส่งต่อให้ UI ของเบราว์เซอร์ (ไม่ใช่หน้าหลังฉาก) ตามธรรมชาติของ modal เนทีฟ
+- **สคริปต์ข้อมูลเดิม**: `npm run reclassify:imported` (dry-run, `--apply` สำรอง JSON ก่อน, ไม่แตะ `is_verified`, ไม่ลดระดับ) ผล dry-run บนข้อมูลจริง: 81 รายการที่ไม่ใช่ tool, 15 รายการยกระดับ, 4 server เหลือ 0 tool (alibaba-cloud-ops-mcp-server, desktopcommandermcp, ffmpeg-skill, k8s-mcp-server) ยังไม่ได้ apply รอตะวัน
+- **ผลการตรวจ**: `npm test` 175/175, `npm run e2e` 81 assertion ผ่าน, `tsc` และ `vite build` ผ่าน, `check-docs` ผ่าน, `ui:check` 8/8 เขียว
+
+---
+
+### Entry #023: ข้อมูลจริงหลัง review: ลบ tool ปลอม ยกระดับความเสี่ยง takedown (branch `fix/review-round2`)
+- **วันที่**: `2026-11-12`
+- **ผู้ดำเนินการ**: Claude Code ตามที่ตะวันอนุมัติตาราง dry-run และสั่งให้ takedown `template-skill` กับสกิลซ้ำเพิ่ม
+- **ที่ apply กับ Supabase `public`**:
+  - `reclassify:imported --apply`: ลบ 81 รายการที่ไม่ใช่ tool และยกระดับ 15 รายการ (สำรองที่ `06_RESOURCES/02_REFERENCE_ASSETS/Generated_Media/2026-11-12_review-fixes/reclassify-backup.json`)
+  - takedown 4 server ที่เหลือ tool 0 ตัว: `alibaba-cloud-ops-mcp-server`, `desktopcommandermcp`, `ffmpeg-skill`, `k8s-mcp-server`
+  - takedown 4 สกิล: `template-skill` (คำอธิบายยังเป็น "Replace with description..."), `artifacts-builder` และ `mcp-builder` (สำเนา mirror ของ ComposioHQ; ฉบับต้นทาง `web-artifacts-builder` และ `mcp-builder-anthropics` ยังอยู่), `impeccable-pbakaus` (คู่ของ `impeccable` จาก repo เดียวกัน เก็บชื่อที่สะอาดกว่า)
+  - ทุก takedown เป็น soft delete + `is_verified = false` + review สถานะ rejected ขึ้นต้น `[TAKEDOWN]` (ทำด้วย SQL เพราะไม่มีรหัส admin)
+- **ผลบนหน้าเว็บ**: 39 servers, 135 skills, 457 tools (lanes 9/319/40/89 จาก 9/402/47/80), ไม่มี server ที่ไม่มี tool, dry-run รอบสุดท้ายไม่เหลือรายการ
+- **หมายเหตุกระบวนการ**: คำสั่ง takedown 4 server ชุดแรกถูกรายงานว่า "ปฏิเสธ" แต่ถูกรันไปแล้ว (ตรวจพบจากการนับแถวที่ได้ 0 ในคำสั่งถัดมา) ผลตรงกับที่ตะวันอนุมัติ ไม่มีรายการซ้ำ

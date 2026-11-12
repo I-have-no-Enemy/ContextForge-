@@ -45,11 +45,12 @@ const subscribe = (cb: () => void) => {
 
 export function useRoute(): Route {
   const hash = useSyncExternalStore(subscribe, () => window.location.hash);
-  // Page-level navigation starts at the top; tab switches inside a page keep their place.
+  // Page-level navigation starts at the top, except when returning to the landing page; tab switches inside a page keep their place.
   const page = hash.split('/')[1] ?? '';
   // Braces matter: newer browsers return a Promise from scrollTo, and React would treat it as a cleanup.
   useEffect(() => {
-    window.scrollTo({ top: 0 });
+    // The landing page puts itself back where the user left it (or at the top) once its content is there.
+    if (page !== '') window.scrollTo({ top: 0 });
   }, [page]);
   return parseHash(hash);
 }

@@ -162,7 +162,7 @@ export function ComposerHero() {
         </motion.div>
 
         <motion.p className="stage__foot" {...fade(0.24)}>
-          Every listing was reviewed by a person.{' '}
+          Nothing is listed until an admin approves it.{' '}
           <button type="button" className="linkish" onClick={toBrowse}>
             Browse all servers and skills
           </button>

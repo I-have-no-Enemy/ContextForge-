@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { RefreshCw } from '../components/icons';
 import * as api from '../services/api';
 import type { AiSkill, McpServer, Pagination } from '../services/api';
 import { href } from '../lib/router';
+import { plural } from '../lib/utils';
+import { browseMemory } from '../lib/browseMemory';
+import { scrollPageTo } from '../lib/smoothScroll';
 import { CLIENTS, useCart } from '../lib/cart';
 import { Button } from '../components/ui/button';
 import { Tag } from '../components/ui/badge';
@@ -21,19 +24,23 @@ const toolLevels = (s: McpServer): RiskLevel[] => (s.tools ?? []).map((t) => t.r
 
 export function BrowseView() {
   const cart = useCart();
-  const [tab, setTab] = useState<'servers' | 'skills'>('servers');
-  const [search, setSearch] = useState('');
-  const [client, setClient] = useState('all');
-  const [page, setPage] = useState({ servers: 1, skills: 1 });
+  // Coming back from a detail page: the tab, search and page the user had, and the lists they were looking at.
+  const initial = browseMemory.ui ?? { tab: 'servers' as const, search: '', client: 'all', page: { servers: 1, skills: 1 } };
+  const [tab, setTab] = useState<'servers' | 'skills'>(initial.tab);
+  const [search, setSearch] = useState(initial.search);
+  const [client, setClient] = useState(initial.client);
+  const [page, setPage] = useState(initial.page);
 
-  const [servers, setServers] = useState<McpServer[]>([]);
-  const [skills, setSkills] = useState<AiSkill[]>([]);
-  const [meta, setMeta] = useState<{ servers?: Pagination; skills?: Pagination }>({});
-  const [loading, setLoading] = useState(true);
+  const [servers, setServers] = useState<McpServer[]>(browseMemory.lists?.servers ?? []);
+  const [skills, setSkills] = useState<AiSkill[]>(browseMemory.lists?.skills ?? []);
+  const [meta, setMeta] = useState<{ servers?: Pagination; skills?: Pagination }>(browseMemory.lists?.meta ?? {});
+  const [loading, setLoading] = useState(!browseMemory.lists);
+  // The first refresh after a return updates quietly: swapping the cards for a skeleton would move the page.
+  const seeded = useRef(Boolean(browseMemory.lists));
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!seeded.current) setLoading(true);
     setError(null);
     try {
       const [s, k] = await Promise.all([
@@ -43,9 +50,11 @@ export function BrowseView() {
       setServers(s.data);
       setSkills(k.data);
       setMeta({ servers: s.pagination, skills: k.pagination });
+      browseMemory.lists = { servers: s.data, skills: k.data, meta: { servers: s.pagination, skills: k.pagination } };
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registry API unreachable.');
     } finally {
+      seeded.current = false;
       setLoading(false);
     }
   }, [search, client, page]);
@@ -56,10 +65,56 @@ export function BrowseView() {
     return () => window.clearTimeout(t);
   }, [load]);
 
-  // A new query starts from page 1.
+  // A new query starts from page 1 (but not the first run, which would undo a restored page).
+  const firstQuery = useRef(true);
   useEffect(() => {
+    if (firstQuery.current) {
+      firstQuery.current = false;
+      return;
+    }
     setPage({ servers: 1, skills: 1 });
   }, [search, client]);
+
+  useEffect(() => {
+    browseMemory.ui = { tab, search, client, page };
+  }, [tab, search, client, page]);
+
+  // Remember where the page is scrolled to: on every scroll, and at the moment a link is followed.
+  useEffect(() => {
+    const save = () => {
+      // Leaving this page shrinks the document and the browser clamps the scroll position; that is not the user's place.
+      if (window.location.hash.replace(/^#\/?/, '') !== '') return;
+      browseMemory.y = window.scrollY;
+    };
+    const onClick = (e: MouseEvent) => {
+      if ((e.target as HTMLElement | null)?.closest?.('a[href^="#/"]')) save();
+    };
+    window.addEventListener('scroll', save, { passive: true });
+    document.addEventListener('click', onClick, true);
+    return () => {
+      window.removeEventListener('scroll', save);
+      document.removeEventListener('click', onClick, true);
+    };
+  }, []);
+
+  // Put the page back where it was before the user opened an item. With the lists restored the page already has
+  // its old height; the loop covers a first visit with nothing cached.
+  useLayoutEffect(() => {
+    const y = browseMemory.y;
+    if (!y) {
+      scrollPageTo(0);
+      return;
+    }
+    let frame = 0;
+    let raf = 0;
+    const restore = () => {
+      const room = document.documentElement.scrollHeight - window.innerHeight;
+      if (room >= y - 2 || frame++ > 90) scrollPageTo(Math.min(y, Math.max(0, room)));
+      else raf = requestAnimationFrame(restore);
+    };
+    restore();
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   // "/" focuses search (UX.md keyboard-first).
   useEffect(() => {
@@ -79,6 +134,16 @@ export function BrowseView() {
     setClient('all');
   };
 
+  const openRegistry = (next: 'servers' | 'skills') => {
+    setTab(next);
+    // Wait one frame so the tab content has rendered before scrolling to it.
+    window.requestAnimationFrame(() => {
+      document.getElementById('browse')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // The page moved, so the keyboard must move with it: the next Tab starts in the registry, not back in the lanes.
+      document.getElementById('browse-h')?.focus({ preventScroll: true });
+    });
+  };
+
   const cards =
     tab === 'servers'
       ? servers.map((s) => (
@@ -92,9 +157,10 @@ export function BrowseView() {
             verified={s.is_verified ?? true}
             risk={maxRisk(toolLevels(s))}
             stats={[
-              { label: 'stars', value: s.github_stars },
-              { label: 'runs', value: s.downloads_count },
+              { label: plural(s.github_stars, 'star'), value: s.github_stars },
+              { label: plural(s.downloads_count, 'export'), value: s.downloads_count },
             ]}
+            license={s.source_url ? (s.source_license ?? 'No license') : undefined}
             selected={cart.has(s.id)}
             onToggle={() => cart.toggle({ id: s.id, kind: 'mcp', name: s.name })}
           />
@@ -106,10 +172,11 @@ export function BrowseView() {
             href={href.skill(k.id)}
             name={k.name}
             description={k.description || 'AI playbook and workflow specification.'}
-            tags={k.compatible_clients}
+            tags={k.tags?.length ? k.tags.slice(0, 4) : k.compatible_clients}
             verified={k.is_verified ?? true}
             flagged={Boolean(k.scan_flags?.prompt_injection_detected)}
-            stats={[{ label: 'exports', value: k.downloads_count }]}
+            stats={[{ label: plural(k.downloads_count, 'export'), value: k.downloads_count }]}
+            license={k.source_url ? (k.source_license ?? 'No license') : undefined}
             selected={cart.has(k.id)}
             onToggle={() => cart.toggle({ id: k.id, kind: 'skill', name: k.name, clients: k.compatible_clients })}
           />
@@ -118,12 +185,14 @@ export function BrowseView() {
   return (
     <>
       <ComposerHero />
-      <RiskLanes />
+      <RiskLanes serverTotal={meta.servers?.total} skillTotal={meta.skills?.total} onOpen={openRegistry} />
 
       <section className="section pg" id="browse" aria-labelledby="browse-h">
         <div className="sec-h">
           <div>
-            <h2 id="browse-h">Browse the registry</h2>
+            <h2 id="browse-h" tabIndex={-1}>
+              Browse the registry
+            </h2>
             <p>
               Servers show their highest-risk tool. Skills show the clients they run in. Open a card for its tools and
               source, or add it to the config cart.

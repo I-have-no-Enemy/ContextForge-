@@ -125,7 +125,7 @@ button.cf-tag:hover { color: var(--color-chalk); border-color: var(--color-smoke
 .cf-field__box:focus-within { border-bottom-color: var(--color-chalk); }
 .cf-field__input {
   flex: 1; min-width: 0; background: none; border: 0; color: var(--color-chalk);
-  font-family: var(--font-aeonik); font-size: 18px; line-height: 1.3; padding: 0;
+  font-family: var(--font-aeonik); font-size: 18px; line-height: 1.3; padding: 0; min-height: 28px;
 }
 .cf-field__input::placeholder { color: var(--color-smoke); }
 .cf-field__input:focus { outline: none; }
@@ -144,7 +144,7 @@ button.cf-tag:hover { color: var(--color-chalk); border-color: var(--color-smoke
 .cf-card__kind { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-8); font-family: var(--font-input); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-smoke); }
 .cf-card__kind-l { display: inline-flex; align-items: center; gap: var(--spacing-8); }
 .cf-card__name { margin: 0; font-size: 23px; line-height: 1.07; font-weight: 400; color: var(--color-chalk); overflow-wrap: anywhere; }
-.cf-card__desc { margin: 0; font-size: 14px; line-height: 1.43; color: var(--color-smoke); }
+.cf-card__desc { margin: 0; font-size: 14px; line-height: 1.43; color: var(--color-smoke); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; } /* the full text is on the detail page */
 .cf-cmd {
   display: flex; align-items: center; gap: var(--spacing-8); background: var(--color-carbon);
   border: 1px solid var(--color-graphite); border-radius: var(--radius-md); padding: 10px 10px 10px 14px;
@@ -244,7 +244,7 @@ button.cf-tag:hover { color: var(--color-chalk); border-color: var(--color-smoke
 
 .section { border-top: 1px solid var(--color-graphite); padding-top: 72px; padding-bottom: 96px; }
 .sec-h { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: end; margin-bottom: 40px; }
-.sec-h h2 { font-size: var(--text-heading-lg); line-height: var(--leading-heading-lg); letter-spacing: var(--tracking-heading-lg); font-weight: 400; margin: 0; }
+.sec-h h1, .sec-h h2 { font-size: var(--text-heading-lg); line-height: var(--leading-heading-lg); letter-spacing: var(--tracking-heading-lg); font-weight: 400; margin: 0; }
 .sec-h p { margin: 12px 0 0; color: var(--color-smoke); max-width: 56ch; font-size: 16px; line-height: 1.4; }
 .sec-h__idx { font-family: var(--font-input); font-size: 13px; color: var(--color-smoke); }
 
@@ -279,8 +279,8 @@ button.cf-tag:hover { color: var(--color-chalk); border-color: var(--color-smoke
 .site-foot a { color: var(--color-chalk); font-family: var(--font-aeonik); font-size: 14px; }
 
 /* Dialog */
-.cf-dialog-backdrop { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(8, 8, 8, 0.88); }
-.cf-dialog { width: 100%; max-width: 720px; max-height: 85vh; display: flex; flex-direction: column; background: var(--color-carbon); border: 1px solid var(--color-card-slate); border-radius: var(--radius-lg); color: var(--color-chalk); }
+/* A native <dialog>: the browser draws the backdrop (::backdrop, see glass.css), traps focus and makes the page behind inert. */
+.cf-dialog { width: min(720px, calc(100% - 32px)); max-height: 85vh; margin: auto; padding: 0; overflow: hidden; flex-direction: column; background: var(--color-carbon); border: 1px solid var(--color-card-slate); border-radius: var(--radius-lg); color: var(--color-chalk); }
 .cf-dialog__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--color-graphite); }
 .cf-dialog__title { margin: 0; font-size: var(--text-heading-sm); line-height: var(--leading-heading-sm); font-weight: 400; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .cf-dialog__desc { margin: 6px 0 0; font-family: var(--font-input); font-size: 13px; color: var(--color-smoke); overflow-wrap: anywhere; }
@@ -309,7 +309,7 @@ button.cf-tag:hover { color: var(--color-chalk); border-color: var(--color-smoke
   .risk-field__col { min-height: 0; }
   .risk-field__col:nth-child(2) { border-right: 0; }
   .risk-field__col:nth-child(-n+2) { border-bottom: 1px solid var(--color-graphite); }
-  .sec-h h2 { font-size: var(--text-heading); }
+  .sec-h h1, .sec-h h2 { font-size: var(--text-heading); }
   .sec-h { grid-template-columns: 1fr; }
   .browse__tools { grid-template-columns: 1fr; gap: 16px; }
   .browse__grid { grid-template-columns: 1fr; }
@@ -370,7 +370,7 @@ textarea.cf-input { resize: vertical; }
 
 /* Detail pages */
 .detail { padding-top: 40px; }
-.back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--color-smoke); text-decoration: none; font-family: var(--font-input);
+.back-link { display: inline-flex; align-items: center; min-height: 24px; gap: 8px; color: var(--color-smoke); text-decoration: none; font-family: var(--font-input);
   font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 32px; }
 .back-link:hover { color: var(--color-chalk); }
 .detail__head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: end; padding-bottom: 32px; border-bottom: 1px solid var(--color-graphite); }
@@ -384,7 +384,9 @@ textarea.cf-input { resize: vertical; }
 .facts dt, .facts dd { margin: 0; padding: 14px 20px; border-bottom: 1px solid var(--color-graphite); font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
 .facts dt { font-family: var(--font-input); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--color-smoke); }
 .facts dt:last-of-type, .facts dd:last-of-type { border-bottom: 0; }
-.ext-link { color: var(--color-chalk); text-underline-offset: 3px; display: inline-flex; gap: 6px; align-items: center; }
+.ext-link { color: var(--color-chalk); text-decoration: underline; text-underline-offset: 3px; display: inline-flex; gap: 6px; align-items: center; min-height: 24px; } /* WCAG 2.5.8 and a link cue that is not only the icon */
+#browse-h:focus { outline: none; }
+.cf-lic { font-family: var(--font-input); font-size: 12px; color: var(--color-smoke); }
 .tools__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
 .tools__head h2 { margin: 0; font-size: var(--text-heading-sm); font-weight: 400; }
 .tools__list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--color-graphite); border-radius: var(--radius-lg); }
@@ -393,7 +395,7 @@ textarea.cf-input { resize: vertical; }
 .tool__head { display: flex; align-items: center; gap: 16px; }
 .tool__name { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--color-chalk); }
 .tool__desc { margin: 0; font-size: 14px; line-height: 1.43; color: var(--color-smoke); }
-.tool summary { cursor: pointer; font-family: var(--font-input); font-size: 12px; color: var(--color-smoke); text-transform: uppercase; letter-spacing: .04em; }
+.tool summary { cursor: pointer; padding-block: 4px; font-family: var(--font-input); font-size: 12px; color: var(--color-smoke); text-transform: uppercase; letter-spacing: .04em; }
 .tool details[open] summary { margin-bottom: 8px; }
 .stack-24 { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
 .skill-source { white-space: pre-wrap; max-height: 70vh; overflow: auto; }
@@ -433,3 +435,48 @@ a.row__name:hover { text-decoration: underline; text-underline-offset: 4px; }
   .toasts { right: 16px; left: 16px; bottom: 72px; max-width: none; }
   .pager { flex-wrap: wrap; justify-content: center; }
 }
+
+/* Admin: import from GitHub */
+.import { display: grid; gap: 16px; margin: 0 0 32px; padding: 20px; border: 1px solid var(--color-iron); border-radius: var(--radius-cards); }
+.import__h { margin: 0 0 4px; font-size: 20px; }
+.import__form { display: grid; gap: 16px; max-width: 720px; }
+.import__row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.import__result { display: grid; gap: 8px; font-size: 14px; }
+.import__result p { margin: 0; }
+.import__result summary { cursor: pointer; padding-block: 4px; }
+.import__list { margin: 8px 0 0; padding-left: 18px; max-height: 260px; overflow: auto; display: grid; gap: 4px; }
+@media (max-width: 599px) { .import__row { grid-template-columns: minmax(0, 1fr); } }
+
+/* Skill detail: SKILL.md read as a document */
+.skill-doc { max-width: 72ch; display: grid; gap: 14px; font-size: 16px; line-height: 1.6; color: var(--color-chalk); }
+.skill-doc h2, .skill-doc h3, .skill-doc h4, .skill-doc h5, .skill-doc h6 { margin: 18px 0 0; line-height: 1.25; font-weight: 400; }
+.skill-doc h2 { font-size: 24px; }
+.skill-doc h3 { font-size: 20px; }
+.skill-doc h4, .skill-doc h5, .skill-doc h6 { font-size: 16px; }
+.skill-doc p, .skill-doc ul, .skill-doc ol, .skill-doc blockquote { margin: 0; }
+.skill-doc ul, .skill-doc ol { padding-left: 1.3em; display: grid; gap: 6px; }
+.skill-doc code { font-family: var(--font-input); font-size: 0.9em; background: var(--color-obsidian); border: 1px solid var(--color-graphite); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
+.skill-doc blockquote { border-left: 3px solid var(--color-iron); padding-left: 14px; color: var(--color-smoke); }
+.skill-doc pre.cf-code { max-height: 60vh; overflow: auto; }
+
+/* The whole card opens the detail page; the title link stretches over it. Buttons stay on top and work on their own. */
+.cf-card { position: relative; cursor: pointer; }
+.cf-card__link::after { content: ''; position: absolute; inset: 0; }
+.cf-card button, .cf-card a:not(.cf-card__link) { position: relative; z-index: 1; }
+.cf-card__link:focus-visible { outline: none; }
+.cf-card:has(.cf-card__link:focus-visible) { outline: 2px solid var(--color-chalk); outline-offset: 3px; }
+
+/* While a dialog is open the page behind it does not scroll; the dialog body scrolls instead. */
+html.is-scroll-locked { overflow: hidden; scrollbar-gutter: stable; }
+.cf-dialog { overscroll-behavior: contain; }
+.cf-dialog[open] { display: flex; }
+.cf-dialog__body { overscroll-behavior: contain; }
+
+/* Skill detail: outline of a long SKILL.md */
+.skill-outline { border: 1px solid var(--color-graphite); border-radius: var(--radius-md); padding: 8px 14px; }
+.skill-outline summary { cursor: pointer; min-height: 24px; padding-block: 4px; font-family: var(--font-input); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--color-smoke); }
+.skill-outline ul { list-style: none; margin: 8px 0 4px; padding: 0; display: grid; gap: 2px; max-height: 40vh; overflow: auto; overscroll-behavior: contain; }
+.skill-outline li.lv2 { padding-left: 14px; }
+.skill-outline li.lv3 { padding-left: 28px; }
+.skill-outline .linkish { text-align: left; font-size: 14px; text-decoration: none; }
+.skill-outline .linkish:hover { text-decoration: underline; }

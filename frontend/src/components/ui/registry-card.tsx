@@ -23,6 +23,8 @@ export interface RegistryCardProps {
   /** Compatible clients (skills). */
   tags?: string[];
   stats?: RegistryStat[];
+  /** Licence of an imported listing; undefined for hand-listed ones. */
+  license?: string;
   selected?: boolean;
   onToggle?: () => void;
   onInspect?: () => void;
@@ -35,7 +37,7 @@ function short(n: number) {
 }
 
 export function RegistryCard({
-  kind, name, description, verified, flagged, risk, command, tags, stats = [], selected, onToggle, onInspect, href,
+  kind, name, description, verified, flagged, risk, command, tags, stats = [], license, selected, onToggle, onInspect, href,
 }: RegistryCardProps) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<number>();
@@ -55,6 +57,8 @@ export function RegistryCard({
       <b>{short(s.value)}</b> {s.label}
     </span>
   ));
+
+  if (license) statNodes.push(<span key="license" className="cf-lic">{license}</span>);
 
   return (
     <article className={cn('cf-card', selected && 'is-selected')} aria-label={name}>

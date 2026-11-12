@@ -42,6 +42,9 @@ export interface McpServer {
   github_stars: number;
   github_contributors?: number;
   github_last_synced_at?: string | null;
+  source_url?: string | null;
+  source_license?: string | null;
+  source_ref?: string | null;
   is_verified: boolean;
   submitted_by?: string;
   user?: { email: string };
@@ -70,6 +73,9 @@ export interface AiSkill {
   submitted_by?: string;
   user?: { email: string };
   scan_flags?: Partial<ScanResult>;
+  source_url?: string | null;
+  source_license?: string | null;
+  source_ref?: string | null;
   latest_review?: LatestReview | null;
   updated_at?: string;
 }
@@ -132,6 +138,19 @@ export interface SyncSummary {
   updated: number;
   skipped: number;
   failed: { server_id: string; name: string; reason: string }[];
+}
+
+export interface ImportSummary {
+  source: string;
+  kind: 'skill' | 'mcp';
+  dry_run: boolean;
+  created: { kind: 'skill' | 'mcp'; name: string; source_url: string; license: string | null; flagged_by_scan?: boolean; tools?: number }[];
+  skipped: { name: string; reason: string }[];
+  failed: { name: string; reason: string }[];
+  partial: boolean;
+  stopped_reason?: string;
+  api_calls: number;
+  rate_remaining: number | null;
 }
 
 export interface FieldIssue {
@@ -228,6 +247,15 @@ export interface ListQuery {
   client?: string;
 }
 export const listServers = (q: ListQuery = {}) => request<McpServer[]>(`/servers${qs({ ...q })}`);
+/** Every page, for the landing lanes: totals must not depend on how many servers fit in one response. */
+export async function listAllServers(): Promise<McpServer[]> {
+  const all: McpServer[] = [];
+  for (let page = 1; ; page++) {
+    const r = await listServers({ limit: 100, page });
+    all.push(...r.data);
+    if (!r.pagination || page >= r.pagination.totalPages) return all;
+  }
+}
 export const myServers = (page = 1) => request<McpServer[]>(`/servers/me${qs({ page, limit: 50 })}`);
 export const getServer = (id: string) => get<McpServer>(`/servers/${enc(id)}`);
 export interface ServerInput {
@@ -284,3 +312,7 @@ export const reviewSubmission = (payload: {
 export const takedown = (item_type: 'server' | 'skill', item_id: string, reason: string) =>
   send<unknown>('POST', '/admin/takedown', { item_type, item_id, reason });
 export const syncGithub = () => send<SyncSummary>('POST', '/admin/sync/github');
+export const importGithub = (payload: { url: string; kind: 'skill' | 'mcp'; limit?: number; min_stars?: number; dry_run?: boolean }) =>
+  send<ImportSummary>('POST', '/admin/import/github', payload);
+export const approveClean = (item_type: 'server' | 'skill') =>
+  send<{ approved: number; left_in_queue_flagged: number; capped: boolean }>('POST', '/admin/submissions/approve-clean', { item_type });

@@ -54,6 +54,7 @@ export function WorkspaceView({ tab }: { tab: Tab }) {
     return (
       <section className="section pg">
         <EmptyState
+          level={1}
           heading="Sign in to see your workspace"
           action={
             <Button variant="primary" size="sm" onClick={requestSignIn}>
@@ -73,7 +74,7 @@ export function WorkspaceView({ tab }: { tab: Tab }) {
     <section className="section pg" aria-labelledby="ws-h">
       <div className="sec-h">
         <div>
-          <h2 id="ws-h">Your workspace</h2>
+          <h1 id="ws-h">Your workspace</h1>
           <p>Everything you submitted, in every review state. Editing an approved item sends it back to the queue.</p>
         </div>
         <div className="cf-row">

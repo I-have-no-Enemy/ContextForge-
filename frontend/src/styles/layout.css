@@ -9,7 +9,7 @@
   gap: var(--space-m);
   margin-bottom: var(--space-l);
 }
-.sec-h h2 {
+.sec-h h1, .sec-h h2 {
   font-size: var(--step-4);
   letter-spacing: -0.03em;
 }
@@ -167,6 +167,12 @@
   border-top: 1px solid var(--line);
   padding-block: var(--space-l);
   font-size: var(--step--1);
+}
+/* The footer sits outside <main>, so on phones it needs its own clearance or the dock hides its last line. */
+@media (max-width: 899px) {
+  .site-foot {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* Tiny screens: nothing may push past 320px */

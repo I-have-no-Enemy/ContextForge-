@@ -13,6 +13,7 @@ import { RiskMeter } from '../components/ui/risk-meter';
 import { ScanReport, parseScanFlags } from '../components/ui/scan-report';
 import { EmptyState } from '../components/ui/empty-state';
 import { ConfirmDialog } from '../components/forms';
+import { ImportPanel } from '../components/ImportPanel';
 
 type Filter = 'pending' | 'flagged' | 'all';
 
@@ -153,6 +154,7 @@ export function AdminView() {
     return (
       <section className="section pg">
         <EmptyState
+          level={1}
           heading={user ? 'Admins only' : 'Sign in as an admin'}
           action={
             !user && (
@@ -174,7 +176,7 @@ export function AdminView() {
     <section className="section pg" aria-labelledby="admin-h">
       <div className="sec-h">
         <div>
-          <h2 id="admin-h">Governance</h2>
+          <h1 id="admin-h">Governance</h1>
           <p>Scanner hits jump the queue. Open an item to see its findings; rejecting requires a note.</p>
         </div>
         <div className="cf-row">
@@ -197,6 +199,8 @@ export function AdminView() {
       )}
 
       {metrics ? <MetricsStrip m={metrics} /> : <div className="skeleton skeleton--metrics" aria-busy="true" />}
+
+      <ImportPanel onDone={load} />
 
       <Tabs
         label="Queue filter"

@@ -12,6 +12,7 @@ Course project for 06016418 Server-Side Web Development, KMITL IT.
 - **Edits go back to review.** When an owner edits an approved item it leaves the public registry until an admin approves it again.
 - **Generate configs.** Pick servers and skills, choose a client, and get the client's real config file plus skill files in the format that client loads. Snapshots never change afterwards.
 - **GitHub metrics.** Stars and contributors are synced from the GitHub API on demand.
+- **Import from GitHub.** An admin pastes a repository, folder or topic URL; skills (`SKILL.md`) and MCP servers (README) are read through the GitHub API into the review queue with their source and license, and nothing is published until an admin approves it.
 
 ## Stack
 
@@ -40,12 +41,13 @@ The seed generates account passwords into `backend/prisma/seed-accounts.local.js
 | `npm run db:check` | Connectivity and required-index check; prints no secrets |
 | `npm run seed` | Resets and seeds the schema in `DATABASE_URL` |
 | `npm run sync:github` | One-off GitHub metrics sync |
+| `npm run import:github -- <url> --kind skill\|mcp [--limit N] [--min-stars N] [--apply]` | Import from a GitHub URL; dry run unless `--apply` |
 
 Root: `node scripts/check-docs.mjs` (doc checks), `node scripts/build-postman.mjs` (regenerates the Postman files).
 
 ## Documentation
 
-- [`docs/API.md`](docs/API.md): 29 endpoints with method, path, description, role and status codes; data model; error codes; OWASP mapping
+- [`docs/API.md`](docs/API.md): 31 endpoints with method, path, description, role and status codes; data model; error codes; OWASP mapping
 - [`docs/postman/`](docs/postman): Postman collection and environment
 - [`docs/DEMO.md`](docs/DEMO.md): presentation script
 - [`CASE_STUDY.md`](CASE_STUDY.md): problem, decisions, results

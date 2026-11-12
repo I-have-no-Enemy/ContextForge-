@@ -192,13 +192,17 @@
   main {
     padding-bottom: 96px;
   }
+  /* Sign in lives in the dock on phones; a second one in the top bar is a duplicate. */
+  .topbar__signin {
+    display: none;
+  }
   .cart-bar {
     display: none !important;
   }
 }
 
 /* ---------- Dialog, toast: glass sheets over a dimmed page ---------- */
-.cf-dialog-backdrop {
+.cf-dialog::backdrop {
   background: var(--scrim);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
@@ -217,11 +221,9 @@
   border-color: var(--line);
 }
 @media (max-width: 639px) {
-  .cf-dialog-backdrop {
-    align-items: flex-end;
-    padding: 8px;
-  }
   .cf-dialog {
+    width: calc(100% - 16px);
+    margin: auto auto 8px; /* a sheet at the bottom of the screen */
     max-height: 92vh;
     border-radius: var(--r-xl) var(--r-xl) var(--r-l) var(--r-l);
   }

@@ -6,11 +6,14 @@ import { href, navigate } from '../lib/router';
 import { canManage, useSession } from '../lib/session';
 import { useCart } from '../lib/cart';
 import { errorText, useToast } from '../lib/toast';
+import { formatDate } from '../lib/utils';
 import { Button } from '../components/ui/button';
 import { Tag } from '../components/ui/badge';
 import { RiskMeter, maxRisk } from '../components/ui/risk-meter';
 import { ScanReport, parseScanFlags } from '../components/ui/scan-report';
 import { EmptyState } from '../components/ui/empty-state';
+import { Tabs } from '../components/ui/tabs';
+import { SkillDoc } from '../components/SkillDoc';
 import { ConfirmDialog, ReviewBadge } from '../components/forms';
 import { ServerEditor, SkillEditor, ToolEditor } from '../components/editors';
 
@@ -42,6 +45,7 @@ function NotFound({ kind, error }: { kind: string; error: Error }) {
   const status = error instanceof api.ApiError ? error.status : 0;
   return (
     <EmptyState
+      level={1}
       heading={status === 404 || status === 400 ? `${kind} not found` : `Could not load this ${kind.toLowerCase()}`}
       action={
         <Button variant="ghost" size="sm" onClick={() => navigate(href.browse())}>
@@ -145,11 +149,22 @@ export function ServerDetailView({ id }: { id: string }) {
           <dd className="cf-mono">
             {server.github_stars.toLocaleString('en-US')} stars · {(server.github_contributors ?? 0).toLocaleString('en-US')} contributors
             {server.github_last_synced_at && (
-              <span className="cf-muted"> · synced {new Date(server.github_last_synced_at).toLocaleDateString()}</span>
+              <span className="cf-muted"> · synced {formatDate(server.github_last_synced_at)}</span>
             )}
           </dd>
           <dt>Config exports</dt>
           <dd className="cf-mono">{server.downloads_count}</dd>
+          {server.source_url && (
+            <>
+              <dt>Imported from</dt>
+              <dd>
+                <a className="ext-link" href={server.source_url} target="_blank" rel="noreferrer noopener">
+                  {server.source_url.replace(/^https?:\/\//, '').replace(/\/(blob|tree)\/[0-9a-f]{40}/, '')} <ExternalLink size={12} aria-hidden="true" />
+                </a>
+                <span className="cf-muted"> · license {server.source_license ?? 'not declared'}</span>
+              </dd>
+            </>
+          )}
           {server.user && (
             <>
               <dt>Submitted by</dt>
@@ -160,7 +175,8 @@ export function ServerDetailView({ id }: { id: string }) {
 
         <div className="tools">
           <div className="tools__head">
-            <h2>Tools ({tools.length})</h2>
+            {/* ponytail: the importer used to cut tool lists at 40, so exactly 40 may be truncated; drop the "+" once those servers are re-imported */}
+            <h2>Tools ({tools.length === 40 ? '40+' : tools.length})</h2>
             {manage && (
               <Button variant="ghost" size="sm" icon={Plus} onClick={() => setAddingTool(true)}>
                 Add tool
@@ -245,6 +261,7 @@ export function SkillDetailView({ id }: { id: string }) {
   const load = useCallback(() => api.getSkill(id), [id]);
   const { data: skill, error, reload } = useRecord<AiSkill>(load);
   const [editing, setEditing] = useState(false);
+  const [view, setView] = useState<'doc' | 'source'>('doc');
   const [deleting, setDeleting] = useState(false);
 
   if (error) return <DetailShell kind="Skill"><NotFound kind="Skill" error={error} /></DetailShell>;
@@ -306,6 +323,17 @@ export function SkillDetailView({ id }: { id: string }) {
           </dd>
           <dt>Config exports</dt>
           <dd className="cf-mono">{skill.downloads_count}</dd>
+          {skill.source_url && (
+            <>
+              <dt>Imported from</dt>
+              <dd>
+                <a className="ext-link" href={skill.source_url} target="_blank" rel="noreferrer noopener">
+                  {skill.source_url.replace(/^https?:\/\//, '').replace(/\/(blob|tree)\/[0-9a-f]{40}/, '')} <ExternalLink size={12} aria-hidden="true" />
+                </a>
+                <span className="cf-muted"> · license {skill.source_license ?? 'not declared'}</span>
+              </dd>
+            </>
+          )}
           {skill.user && (
             <>
               <dt>Submitted by</dt>
@@ -318,10 +346,23 @@ export function SkillDetailView({ id }: { id: string }) {
           {flagged && (
             <ScanReport name={skill.name} score={scan?.riskScore ?? 0} flags={parseScanFlags(scan?.flags)} excerpt={skill.skill_content} />
           )}
-          {/* Rendered as plain text: skill content is untrusted (OWASP LLM02). */}
-          <pre className="cf-code skill-source" aria-label="SKILL.md source">
-            {skill.skill_content}
-          </pre>
+          <Tabs
+            label="How to read this skill"
+            value={view}
+            onChange={(id) => setView(id as 'doc' | 'source')}
+            items={[
+              { id: 'doc', label: 'Read' },
+              { id: 'source', label: 'SKILL.md source' },
+            ]}
+          />
+          {/* Built from React elements only, never injected as HTML: skill content is untrusted (OWASP LLM01, LLM02). */}
+          {view === 'doc' ? (
+            <SkillDoc source={skill.skill_content} />
+          ) : (
+            <pre className="cf-code skill-source" aria-label="SKILL.md source">
+              {skill.skill_content}
+            </pre>
+          )}
         </div>
       </div>
 

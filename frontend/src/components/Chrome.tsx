@@ -5,8 +5,11 @@ import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
 import { useCart } from '../lib/cart';
 import { useTheme } from '../lib/theme';
+import { resetBrowse } from '../lib/browseMemory';
 import { StatusBadge } from './ui/badge';
-import { Gavel, House, Moon, ShoppingBagOpen, Sun, UserCircle } from './icons';
+import { BookOpen, Gavel, House, Moon, ShoppingBagOpen, Sun, UserCircle } from './icons';
+
+const API_DOCS_URL = 'https://github.com/I-have-no-Enemy/ContextForge-/blob/main/docs/API.md';
 
 const goToCart = (route: Route) => {
   if (route.name !== 'browse') navigate(href.browse());
@@ -26,9 +29,9 @@ export function Topbar({ route }: { route: Route }) {
       .catch(() => setHealth('down'));
   }, []);
 
-  const link = (to: string, label: string, active: boolean) => (
+  const link = (to: string, label: string, active: boolean, onClick?: () => void) => (
     <li>
-      <a className="glass-btn" href={to} aria-current={active ? 'page' : undefined}>
+      <a className="glass-btn" href={to} aria-current={active ? 'page' : undefined} onClick={onClick}>
         {label}
       </a>
     </li>
@@ -37,15 +40,15 @@ export function Topbar({ route }: { route: Route }) {
   return (
     <header className="topbar pg">
       <nav className="topbar__inner glass glass--pill" aria-label="Primary">
-        <a className="wordmark" href={href.browse()}>
+        <a className="wordmark" href={href.browse()} onClick={resetBrowse}>
           ContextForge <i>/ registry</i>
         </a>
         <ul className="topbar__links">
-          {link(href.browse(), 'Browse', ['browse', 'server', 'skill'].includes(route.name))}
+          {link(href.browse(), 'Browse', ['browse', 'server', 'skill'].includes(route.name), resetBrowse)}
           {user && link(href.workspace(), 'Workspace', route.name === 'workspace')}
           {user?.role === 'admin' && link(href.admin(), 'Admin', route.name === 'admin')}
           <li>
-            <a className="glass-btn" href="https://github.com/I-have-no-Enemy/ContextForge-/blob/main/docs/API.md" target="_blank" rel="noreferrer">
+            <a className="glass-btn" href={API_DOCS_URL} target="_blank" rel="noreferrer">
               API docs
             </a>
           </li>
@@ -80,7 +83,7 @@ export function Topbar({ route }: { route: Route }) {
               </button>
             </>
           ) : (
-            <button type="button" className="glass-btn" aria-pressed="true" onClick={requestSignIn}>
+            <button type="button" className="glass-btn topbar__signin" aria-pressed="true" onClick={requestSignIn}>
               Sign in
             </button>
           )}
@@ -96,7 +99,7 @@ export function Dock({ route }: { route: Route }) {
   const cart = useCart();
   return (
     <nav className="dock glass glass--pill glass--strong" aria-label="Quick navigation">
-      <a className="glass-btn" href={href.browse()} aria-current={['browse', 'server', 'skill'].includes(route.name) ? 'page' : undefined}>
+      <a className="glass-btn" href={href.browse()} onClick={resetBrowse} aria-current={['browse', 'server', 'skill'].includes(route.name) ? 'page' : undefined}>
         <House size={22} aria-hidden="true" />
         Browse
       </a>
@@ -117,6 +120,10 @@ export function Dock({ route }: { route: Route }) {
           Admin
         </a>
       )}
+      <a className="glass-btn" href={API_DOCS_URL} target="_blank" rel="noreferrer">
+        <BookOpen size={22} aria-hidden="true" />
+        API docs
+      </a>
       <button type="button" className="glass-btn" onClick={() => goToCart(route)} aria-label={`Config cart, ${cart.items.length} items`}>
         <ShoppingBagOpen size={22} aria-hidden="true" />
         Cart

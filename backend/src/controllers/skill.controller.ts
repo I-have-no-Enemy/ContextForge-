@@ -39,7 +39,7 @@ export class SkillController {
           where: whereClause,
           skip,
           take: limit,
-          orderBy: { downloads_count: 'desc' },
+          orderBy: [{ downloads_count: 'desc' }, { name: 'asc' }], // name: stable pages when counts tie
           select: {
             skill_id: true,
             name: true,
@@ -48,6 +48,8 @@ export class SkillController {
             tags: true,
             downloads_count: true,
             created_at: true,
+            source_url: true,
+            source_license: true,
             user: { select: { email: true } },
           },
         }),
