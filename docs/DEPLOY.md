@@ -52,6 +52,6 @@ The service sleeps after about 15 minutes without traffic and the first request 
 
 The build command and Node 22 were not run on Render itself; locally the same build ran on Node 26. The first Render build is the real test of `render.yaml`.
 
-## Why not Vercel
+## Vercel instead
 
-The repository can run on Vercel, but not unchanged. See `DEV_LOG.md` entry 024 for the comparison.
+The repository is also prepared for Vercel (`vercel.json`, `api/index.js`); see [DEPLOY_VERCEL.md](DEPLOY_VERCEL.md). Use one host, not both.
