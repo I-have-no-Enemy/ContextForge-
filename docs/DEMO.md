@@ -4,18 +4,16 @@
 
 ## เตรียมก่อนเริ่ม (10 นาทีก่อนขึ้นนำเสนอ)
 
-```bash
-cd D:/TAWAN-OS/ContextForge-
-npm install
-npm run db:check --workspace=backend   # ต้องเห็น "connected; 12/12 required indexes present"
-npm run dev                            # API :5000 + เว็บ :3000
-```
+เดโมทั้งหมดรันบนเว็บจริงที่ Vercel ไม่ต้องรัน `npm run dev` เว็บกับ API อยู่ origin เดียวกัน ฐานข้อมูลเป็น Supabase ตัวเดียวกับตอนพัฒนา
 
-- รหัสผ่านบัญชีจริงเก็บใน Windows Credential Manager (`ContextForge/<email>`) คัดลอกลง clipboard ด้วย `pwsh scripts/get-password.ps1` (ไม่แสดงบนจอ)
-  - `admin@contextforge.dev` (admin)
-  - `maintainer@contextforge.dev` (developer เจ้าของ server และ skill ที่ seed ไว้): `pwsh scripts/get-password.ps1 maintainer@contextforge.dev`
-- เปิดแท็บไว้ 4 แท็บ: เว็บ `http://localhost:3000`, Supabase Table Editor, Postman, VS Code ที่ `docs/API.md`
-- **ห้ามรัน `npm run seed` กับฐานข้อมูลนี้ก่อนนำเสนอ**: seed ลบทุกตารางรวมข้อมูลที่ import จาก GitHub (39 server, 135 skill) และบัญชีจริง ต้องใส่ `-- --confirm-wipe` ถึงจะรันได้ (ตัวกันที่ `backend/src/config/seedGuard.ts`) ใช้เฉพาะเมื่อตั้งใจเริ่มใหม่ทั้งหมด
+1. เปิด `https://contextforge-seven.vercel.app/api/v1/health` ต้องเห็น `"status":"healthy"` และ `"database":"up"` ถ้าเปิดครั้งแรกแล้วช้าเป็นเพราะ cold start ให้เปิดซ้ำอีกครั้งก่อนขึ้นนำเสนอ
+2. เปิดหน้าแรก `https://contextforge-seven.vercel.app` ดูว่า Browse โหลดรายการขึ้น
+3. รหัสผ่านบัญชีจริงเก็บใน Windows Credential Manager (`ContextForge/<email>`) คัดลอกลง clipboard ด้วย `pwsh scripts/get-password.ps1` (ไม่แสดงบนจอ)
+   - `admin@contextforge.dev` (admin)
+   - `maintainer@contextforge.dev` (developer เจ้าของ server และ skill ที่ seed ไว้): `pwsh scripts/get-password.ps1 maintainer@contextforge.dev`
+4. เปิดแท็บไว้ 4 แท็บ: เว็บ `https://contextforge-seven.vercel.app`, Supabase Table Editor, Postman (environment `ContextForge Vercel`), VS Code ที่ `docs/API.md`
+5. ซ้อมข้อ 5.1 (สมัครบัญชี) บนเว็บจริงก่อนวันนำเสนอหนึ่งรอบ เพราะ `docs/DEPLOY_VERCEL.md` ยังจดว่าการสมัครบน production ยังไม่เคยตรวจครบทั้งเส้น บัญชีที่สมัครตอนซ้อมใช้ซ้ำเป็น "developer B" ในข้อ 4 ได้
+- **ห้ามรัน `npm run seed` กับฐานข้อมูลนี้ก่อนนำเสนอ**: seed ลบทุกตารางรวมข้อมูลที่ import จาก GitHub (39 server, 138 skill) และบัญชีจริง ต้องใส่ `-- --confirm-wipe` ถึงจะรันได้ (ตัวกันที่ `backend/src/config/seedGuard.ts`) ใช้เฉพาะเมื่อตั้งใจเริ่มใหม่ทั้งหมด
 
 ## 1. ปัญหาและระบบ (1 นาที)
 
@@ -25,13 +23,13 @@ AI agent อย่าง Claude, Cursor, Cline, Antigravity ต่อ MCP server
 
 - เปิด Supabase → Table Editor ให้เห็น 6 ตาราง: `users`, `mcp_servers`, `tool_definitions`, `ai_skills`, `client_configs`, `submission_reviews`
 - เปิด `docs/erd.drawio` (สร้างด้วย Draw.io MCP, ภาพส่งออกอยู่ที่ `docs/erd.png`) หรือ ER diagram ใน `docs/API.md` หัวข้อ Data model: `tool_definitions` ลบตาม server (CASCADE), `client_configs` เก็บ snapshot เป็น JSONB, `submission_reviews` อ้างถึง server หรือ skill แบบ polymorphic
-- ข้อมูลเป็นของจริง (ตรวจเมื่อ 12 พ.ย. 2569): MCP server 44 ตัว อนุมัติแล้ว 39 (seed 10 + import จาก GitHub 29), skill 144 อนุมัติแล้ว 135 (seed 5 + import 130), tool 458 ตัว ทุกรายการ import มี `source_url`, license และ commit sha ในแถว พร้อมดาว GitHub ที่ sync มาจาก api.github.com ตัวเลขเปลี่ยนได้ถ้ามี import หรือ takedown เพิ่ม ให้เปิด Admin metrics ยืนยันก่อนพูด
+- ข้อมูลเป็นของจริง (ตรวจเมื่อ 12 พ.ย. 2569): MCP server 44 ตัว อนุมัติแล้ว 39 (seed 10 + import จาก GitHub 29), skill 148 อนุมัติแล้ว 138 (seed 5 + import 133), tool 458 ตัว ทุกรายการ import มี `source_url`, license และ commit sha ในแถว พร้อมดาว GitHub ที่ sync มาจาก api.github.com ตัวเลขเปลี่ยนได้ถ้ามี import หรือ takedown เพิ่ม ให้เปิด Admin metrics ยืนยันก่อนพูด
 
 ## 3. เอกสาร API และ Postman (2 นาที)
 
 - เปิด `docs/API.md` ตาราง Core Endpoints 31 เส้น ครบ Method, Path, Description, Role, Status
-- Postman: import `docs/postman/ContextForge.postman_collection.json` กับ `local.postman_environment.json` ใส่ `adminPassword` ใน environment แล้วกด Run collection (55 request)
-- ทางเลือกที่ไม่แตะข้อมูลจริง: `npm run e2e --workspace=backend` รันทั้งชุดบน schema ทดสอบ ผลล่าสุด 55 request, 81 assertion ผ่านหมด
+- Postman: import `docs/postman/ContextForge.postman_collection.json` กับ `vercel.postman_environment.json` แล้วยิงทีละ request กับเว็บจริง (ใช้ในข้อ 4) **ห้ามกด Run collection กับ Vercel** เพราะชุดนี้สร้างข้อมูลจริงและ login หลายครั้งจนติด limit 10 ครั้งต่อนาที
+- ผลรันทั้งชุด: `npm run e2e --workspace=backend` รันบน schema ทดสอบ ไม่แตะข้อมูลจริง ผลล่าสุด 55 request, 81 assertion ผ่านหมด ถ้าจะโชว์ให้รันไว้ก่อนแล้วเปิดผลค้างไว้ (ใช้เวลาหลายนาที)
 
 ## 4. สิทธิ์: 401 และ 403 (2 นาที)
 
@@ -43,7 +41,7 @@ AI agent อย่าง Claude, Cursor, Cline, Antigravity ต่อ MCP server
 | เรียกอันเดิมด้วย token ของ developer | 403 `FORBIDDEN` |
 | developer B `PATCH /servers/:id` ของ developer A | 403 และข้อมูลไม่เปลี่ยน |
 | เปิด `/#/admin` ในเว็บด้วยบัญชี developer | หน้า "Admins only" |
-| login ผิด 11 ครั้งในหนึ่งนาที | ครั้งที่ 11 ได้ 429 พร้อม `Retry-After` |
+| login ผิด 11 ครั้งในหนึ่งนาที | ครั้งที่ 11 ได้ 429 พร้อม `Retry-After` (ตัวนับอยู่ในหน่วยความจำของแต่ละ instance บน Vercel ถ้า request ไปตก instance อื่นอาจได้ 429 ช้ากว่าครั้งที่ 11 ทำข้อนี้เป็นข้อสุดท้าย เพราะหลังจากนั้น login ไม่ได้ 1 นาที) |
 
 ## 5. เดโมสด: สร้าง ค้นหา แก้ไข ลบ (4 นาที)
 
@@ -75,6 +73,8 @@ npm test --workspace=backend   # 197 tests, 16 files, ยิง PostgreSQL จ�
 
 | อาการ | ทำอะไร |
 |---|---|
+| request แรกช้าหลายวินาที | cold start ของ Vercel function เปิด `/api/v1/health` ซ้ำหนึ่งครั้งแล้วค่อยเดโมต่อ |
 | ป้าย "API · offline" หรือ health ตอบ 503 | `npm run db:check --workspace=backend` ดูว่าต่อ Supabase ได้ไหม; Supabase free tier อาจ pause ถ้าไม่ใช้นาน ให้กด Restore ใน dashboard |
 | login ไม่ได้ ขึ้น 429 | รอ 1 นาที (limit 10 ครั้งต่อนาที) |
-| เน็ตล่ม | `npm run dev:testdb --workspace=backend` ใช้ไม่ได้เพราะต้องต่อ Supabase เหมือนกัน ให้เปิดภาพหน้าจอสำรองที่เตรียมไว้ |
+| Vercel ล่มหรือ deploy พัง | สำรองบนเครื่อง: `npm run dev` แล้วเปิด `http://localhost:3000` ใช้ฐานข้อมูลเดียวกัน ข้อมูลและบัญชีเหมือนกันทุกอย่าง |
+| เน็ตล่ม | ทั้ง Vercel และ local ต้องต่อ Supabase ให้เปิดภาพหน้าจอสำรองที่เตรียมไว้ |

@@ -3,7 +3,8 @@
 | | |
 |---|---|
 | Role | Solo: requirements, API design, backend, frontend, testing |
-| Timeline | Sep 12 to Nov 2026 (final presentation Nov 19-20, 2026) |
+| Timeline | Sep 12 to Nov 2026 (final presentation Nov 18, 2026) |
+| Live | https://contextforge-seven.vercel.app (Vercel, database on Supabase) |
 | Stack | Express 4, TypeScript, Prisma 5, PostgreSQL 17 on Supabase, React 18, Vite, Vitest |
 | Course | 06016418 Server-Side Web Development, KMITL IT (project = 30% of the grade) |
 
@@ -18,7 +19,8 @@ A registry where:
 - every MCP server lists its tools with a risk level, and cards show the highest one;
 - every skill is scanned for prompt-injection patterns when it is submitted and whenever it is edited;
 - nothing is public until an admin approves it, and an owner's edit sends it back to review;
-- a user picks servers and skills and downloads the exact files their client loads.
+- a user picks servers and skills and downloads the exact files their client loads; signing in is optional and only saves the config to the account;
+- an admin can import skills and MCP servers from a GitHub URL into the review queue, with source URL, license and commit sha kept on each row.
 
 ## Decisions
 
@@ -40,12 +42,16 @@ A registry where:
 
 ## Results
 
-- 29 REST endpoints, 6 tables, 12 indexes including 4 GIN indexes on JSONB.
-- 111 integration tests passing against PostgreSQL; Postman collection of 50 requests and 74 assertions passing end to end with rate limits on.
-- 10 real MCP servers and 35 tools seeded, with live GitHub metrics (for example context7: 64,553 stars).
+- 31 REST endpoints under `/api/v1`, 6 tables, 12 indexes including 4 GIN indexes on JSONB.
+- 197 integration tests in 16 files passing against PostgreSQL; Postman collection of 55 requests and 81 assertions passing end to end with rate limits on.
+- Real data: 39 approved MCP servers (10 seeded, 29 imported from GitHub) with 458 tools, and 138 approved skills (5 seeded, 133 imported), with GitHub stars synced from api.github.com (for example context7: 64,553 stars at the first sync).
+- Deployed on Vercel on 2026-11-12: the site and the API share one origin, so the `SameSite=Strict` cookie works; health, 401 and the rate limiter were checked on production (see `docs/DEPLOY_VERCEL.md`).
 
 ## Next
 
+- Postgres Row Level Security; today access control lives in the API layer only.
+- MFA for admins and a separate audit log table; today `submission_reviews` records the decisions.
+- Ranking and filter endpoints, such as top skills or filter by risk level.
 - Move the scanner from regex heuristics to a model-assisted classifier with the regex as a first pass.
 - Scheduled GitHub sync (currently admin-triggered).
-- Deploy the API and frontend; today the database is on Supabase and the app runs locally.
+- Shared rate-limit counters (or a Vercel Firewall rule) because the in-memory limiter counts per instance.

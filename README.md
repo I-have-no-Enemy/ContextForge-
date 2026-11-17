@@ -4,6 +4,8 @@ Registry for MCP servers and AI skills (`SKILL.md`) that shows what each tool ca
 
 Course project for 06016418 Server-Side Web Development, KMITL IT.
 
+Live: https://contextforge-seven.vercel.app (API under `/api/v1`, health at `/api/v1/health`). As of 2026-11-17 the registry lists 39 approved MCP servers and 138 approved skills.
+
 ## What it does
 
 - **Browse without an account.** Verified servers and skills, searchable, paginated. Each server shows its highest-risk tool (`read_only`, `network`, `filesystem`, `destructive`).
@@ -35,7 +37,7 @@ The seed generates account passwords into `backend/prisma/seed-accounts.local.js
 
 | Command | What it does |
 |---|---|
-| `npm test` | 111 integration tests against the isolated `ctxforge_test` schema (never touches `public`) |
+| `npm test` | 197 integration tests in 16 files against the isolated `ctxforge_test` schema (never touches `public`) |
 | `npm run e2e` | Seeds the test schema, starts the API with rate limits on, runs the Postman collection with newman |
 | `npm run dev:testdb` | Real API on the seeded test schema, for trying the UI without changing real data |
 | `npm run db:check` | Connectivity and required-index check; prints no secrets |
@@ -47,16 +49,18 @@ Root: `node scripts/check-docs.mjs` (doc checks), `node scripts/build-postman.mj
 
 ## Deploying
 
-Two hosts are prepared; pick one.
+Production runs on Vercel. A Render Blueprint is kept as a second option.
 
-- **Vercel**: `vercel.json` and `api/index.js` serve the site from the CDN and the API as one function. Steps and checks: [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md). Static check: `npm run check:vercel`; local rehearsal: `npm run vercel:smoke`.
+- **Vercel (live)**: `vercel.json` and `api/index.js` serve the site from the CDN and the API as one function. Steps and checks: [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md). Static check: `npm run check:vercel`; local rehearsal: `npm run vercel:smoke`.
 - **Render**: `render.yaml` is a Blueprint for one web service that serves the site and the API on one origin. Steps and what was not verified: [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Documentation
 
 - [`docs/API.md`](docs/API.md): 31 endpoints with method, path, description, role and status codes; data model; error codes; OWASP mapping
-- [`docs/postman/`](docs/postman): Postman collection and environment
-- [`docs/DEMO.md`](docs/DEMO.md): presentation script
+- [`docs/postman/`](docs/postman): Postman collection (55 requests, 81 assertions) and environments for local and Vercel
+- [`docs/DEMO.md`](docs/DEMO.md): live demo script (runs on the Vercel site)
+- [`docs/SLIDE_SCRIPT.md`](docs/SLIDE_SCRIPT.md): talk track for the 20 slides, with likely questions
+- [`docs/erd.drawio`](docs/erd.drawio), [`docs/erd.png`](docs/erd.png): ERD of the 6 tables
 - [`CASE_STUDY.md`](CASE_STUDY.md): problem, decisions, results
 - [`specs/001-mcp-skills-registry/spec.md`](specs/001-mcp-skills-registry/spec.md): feature specification
 - [`DESIGN.md`](DESIGN.md), [`UX.md`](UX.md): design system and UX notes
