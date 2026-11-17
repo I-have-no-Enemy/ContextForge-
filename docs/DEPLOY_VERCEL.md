@@ -72,7 +72,9 @@ Verified on the Windows development machine, in a clean clone with `npm ci`, the
 
 - The rate limiter works behind Vercel's proxy: 12 login attempts with a different spoofed `X-Forwarded-For` each time got 401 ten times and then 429 with `Retry-After`, so Vercel overwrites that header and spoofing does not dodge the limit. (All attempts came from one real address and used a non-existent email.)
 
-**Still not verified:** that two different visitors get separate rate-limit buckets (needs two real client addresses), registering a new account end to end, and cold-start timing (not measured; every request after the final deploy answered 200, including the first one).
+**Registration verified on 2026-11-17** with the account `devb.rehearsal@example.com`: register with `role: admin` in the body answers 400; register answers 201 without a cookie (the page then signs in, `frontend/src/lib/session.tsx`); login sets the cookie with `HttpOnly`, `Secure` and `SameSite=Strict`; `/auth/me` answers 200; `/admin/metrics` answers 403; a `PATCH` on another owner's server answers 403 and the row stays the same; after logout `/auth/me` answers 401.
+
+**Still not verified:** that two different visitors get separate rate-limit buckets (needs two real client addresses), and cold-start timing (not measured; every request after the final deploy answered 200, including the first one).
 
 ## Who can open the site
 

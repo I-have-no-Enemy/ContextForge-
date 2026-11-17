@@ -12,7 +12,7 @@
    - `admin@contextforge.dev` (admin)
    - `maintainer@contextforge.dev` (developer เจ้าของ server และ skill ที่ seed ไว้): `pwsh scripts/get-password.ps1 maintainer@contextforge.dev`
 4. เปิดแท็บไว้ 4 แท็บ: เว็บ `https://contextforge-seven.vercel.app`, Supabase Table Editor, Postman (environment `ContextForge Vercel`), VS Code ที่ `docs/API.md`
-5. ซ้อมข้อ 5.1 (สมัครบัญชี) บนเว็บจริงก่อนวันนำเสนอหนึ่งรอบ เพราะ `docs/DEPLOY_VERCEL.md` ยังจดว่าการสมัครบน production ยังไม่เคยตรวจครบทั้งเส้น บัญชีที่สมัครตอนซ้อมใช้ซ้ำเป็น "developer B" ในข้อ 4 ได้
+5. บัญชี "developer B" สำหรับข้อ 4 คือ `devb.rehearsal@example.com` (สร้างตอนซ้อมบนเว็บจริงเมื่อ 17 พ.ย. 2569) คัดลอกรหัสด้วย `pwsh scripts/get-password.ps1 devb.rehearsal@example.com` ตอนเดโมข้อ 5.1 ให้สมัครด้วยอีเมลใหม่ ถ้าใช้อีเมลนี้ซ้ำจะได้ 409
 - **ห้ามรัน `npm run seed` กับฐานข้อมูลนี้ก่อนนำเสนอ**: seed ลบทุกตารางรวมข้อมูลที่ import จาก GitHub (39 server, 138 skill) และบัญชีจริง ต้องใส่ `-- --confirm-wipe` ถึงจะรันได้ (ตัวกันที่ `backend/src/config/seedGuard.ts`) ใช้เฉพาะเมื่อตั้งใจเริ่มใหม่ทั้งหมด
 
 ## 1. ปัญหาและระบบ (1 นาที)
